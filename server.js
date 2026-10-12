@@ -48,10 +48,19 @@ var InvoiceItemSchema = new Schema(
       min: 0,
       default: 0
     },
+    colorChoice: {
+      type: String,
+      enum: ["white", "black", "other"],
+      default: "white"
+    },
+    customColorNumber: {
+      type: Schema.Types.Mixed,
+      default: ""
+    },
     colorCode: {
       type: Schema.Types.Mixed,
       required: [true, "\u0643\u0648\u062F \u0627\u0644\u0644\u0648\u0646 \u0623\u0648 \u0627\u062E\u062A\u064A\u0627\u0631\u0647 \u0645\u0637\u0644\u0648\u0628"],
-      default: "1"
+      default: "\u0623\u0628\u064A\u0636"
     },
     layerType: {
       type: String,
@@ -149,11 +158,36 @@ InvoiceSchema.pre("validate", function() {
     this.items = this.items.map((item) => {
       const length = Math.max(0, Number(item.length) || 0);
       const width = Math.max(0, Number(item.width) || 0);
-      const totalDimensions = Number((length + width).toFixed(4));
-      const itemPrice = Number((totalDimensions * currentAreaPrice).toFixed(2));
+      const totalDimensions = Number((length * width / 1e4).toFixed(4));
+      const layerType = item.layerType || "single";
+      const layerFee = layerType === "double" ? 10 : 0;
+      let colorChoice = item.colorChoice;
+      const rawColorStr = String(item.colorCode ?? "").trim().toLowerCase();
+      if (!colorChoice) {
+        if (rawColorStr === "\u0623\u0628\u064A\u0636" || rawColorStr === "\u0627\u0628\u064A\u0636" || rawColorStr === "white") {
+          colorChoice = "white";
+        } else if (rawColorStr === "\u0623\u0633\u0648\u062F" || rawColorStr === "\u0627\u0633\u0648\u062F" || rawColorStr === "black") {
+          colorChoice = "black";
+        } else {
+          colorChoice = "other";
+        }
+      }
+      const isFree = colorChoice === "white" || colorChoice === "black" || rawColorStr === "\u0623\u0628\u064A\u0636" || rawColorStr === "\u0627\u0628\u064A\u0636" || rawColorStr === "white" || rawColorStr === "\u0623\u0633\u0648\u062F" || rawColorStr === "\u0627\u0633\u0648\u062F" || rawColorStr === "black";
+      const colorFee = isFree ? 0 : 5;
+      const itemPrice = Number(
+        (totalDimensions * currentAreaPrice + layerFee + colorFee).toFixed(2)
+      );
       computedTotalMeters += totalDimensions;
       computedGrandTotal += itemPrice;
       const pType = item.type || item.productType || this.invoiceType || "black_screen";
+      let finalColorCode = item.colorCode;
+      if (colorChoice === "white") {
+        finalColorCode = "\u0623\u0628\u064A\u0636";
+      } else if (colorChoice === "black") {
+        finalColorCode = "\u0623\u0633\u0648\u062F";
+      } else if (colorChoice === "other") {
+        finalColorCode = item.customColorNumber !== void 0 && item.customColorNumber !== "" ? item.customColorNumber : item.colorCode !== void 0 ? item.colorCode : "";
+      }
       return {
         ...item,
         id: item.id || new mongoose.Types.ObjectId().toString(),
@@ -162,9 +196,11 @@ InvoiceSchema.pre("validate", function() {
         length,
         width,
         totalDimensions,
+        layerType,
+        colorChoice,
+        customColorNumber: item.customColorNumber ?? (colorChoice === "other" ? finalColorCode : ""),
+        colorCode: finalColorCode,
         itemPrice,
-        layerType: item.layerType || "single",
-        colorCode: item.colorCode !== void 0 ? item.colorCode : pType === "black_screen" ? 1 : "beige",
         notes: item.notes || ""
       };
     });

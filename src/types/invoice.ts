@@ -5,6 +5,16 @@
 
 export type ProductType = 'black_screen' | 'black_out';
 export type LayerType = 'single' | 'double';
+export type ColorChoice = 'white' | 'black' | 'other';
+
+export const DOUBLE_LAYER_EXTRA_FEE = 10;
+export const OTHER_COLOR_EXTRA_FEE = 5;
+
+export const COLOR_CHOICE_OPTIONS = [
+  { value: 'white', label: 'أبيض (مجاني)', fee: 0 },
+  { value: 'black', label: 'أسود (مجاني)', fee: 0 },
+  { value: 'other', label: 'آخر (+5 د)', fee: 5 },
+] as const;
 
 export const BLACK_OUT_COLOR_OPTIONS = [
   { value: 'gray', label: 'رصاصي (Gray)' },
@@ -23,12 +33,14 @@ export interface InvoiceItem {
   id: string;
   type?: ProductType;
   productType: ProductType; // 'black_screen' | 'black_out'
-  length: number; // الطول
-  width: number; // العرض
-  totalDimensions: number; // الطول × العرض
-  colorCode: string | number; // شبك: رقم يدخله المستخدم | بلاك أوت: gray || black || beige || brown
+  length: number; // الطول (سم)
+  width: number; // العرض (سم)
+  totalDimensions: number; // الطول × العرض (م²)
+  colorChoice?: ColorChoice; // 'white' | 'black' | 'other'
+  customColorNumber?: string | number; // رقم اللون عند اختيار "آخر"
+  colorCode: string | number; // شبك: أبيض | أسود | رقم يدخله المستخدم | بلاك أوت
   layerType: LayerType; // 'single' | 'double'
-  itemPrice: number; // يحسب تلقائياً = totalDimensions * meterPrice
+  itemPrice: number; // يحسب تلقائياً = (totalDimensions * meterPrice) + (دبل ? 10 : 0) + (لون آخر ? 5 : 0)
   notes: string; // ملاحظة للبند
 }
 

@@ -305,9 +305,20 @@ export const ArchiveDashboardPage: React.FC<ArchiveDashboardPageProps> = ({
                           {inv.items
                             .slice(0, 3)
                             .map(
-                              (it) =>
-                                `${it.productType === 'black_out' ? 'بلاك أوت' : 'سكرين'} (${it.colorCode
-                                } - ${it.layerType === 'double' ? 'دبل' : 'سنجل'})`
+                              (it) => {
+                                const codeStr = String(it.colorCode ?? '').trim();
+                                const colorLabel =
+                                  it.colorChoice === 'white' || codeStr === 'أبيض' || codeStr === 'ابيض' || codeStr.toLowerCase() === 'white'
+                                    ? 'أبيض'
+                                    : it.colorChoice === 'black' || codeStr === 'أسود' || codeStr === 'اسود' || codeStr.toLowerCase() === 'black'
+                                    ? 'أسود'
+                                    : codeStr
+                                    ? `رقم ${codeStr}`
+                                    : '—';
+                                return `${it.productType === 'black_out' ? 'بلاك أوت' : 'شبك'} (${colorLabel} - ${
+                                  it.layerType === 'double' ? 'دبل' : 'سنجل'
+                                })`;
+                              }
                             )
                             .join(' ، ')}
                           {inv.items.length > 3 ? ` +${inv.items.length - 3}` : ''}

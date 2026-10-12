@@ -727,9 +727,26 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
                         borderBottom: '1px solid #e2e8f0',
                       }}
                     >
-                      {item.productType === 'black_screen'
-                        ? `رقم ${item.colorCode}`
-                        : item.colorCode || '—'}
+                      {(() => {
+                        const codeStr = String(item.colorCode ?? '').trim();
+                        if (
+                          item.colorChoice === 'white' ||
+                          codeStr === 'أبيض' ||
+                          codeStr === 'ابيض' ||
+                          codeStr.toLowerCase() === 'white'
+                        ) {
+                          return 'أبيض';
+                        }
+                        if (
+                          item.colorChoice === 'black' ||
+                          codeStr === 'أسود' ||
+                          codeStr === 'اسود' ||
+                          codeStr.toLowerCase() === 'black'
+                        ) {
+                          return 'أسود';
+                        }
+                        return codeStr ? `رقم ${codeStr}` : '—';
+                      })()}
                     </td>
                     <td
                       style={{
@@ -786,7 +803,7 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
                 إجمالي عدد المنتجات في الفاتورة: {invoice.items.length}
               </div>
               <div style={{ margin: 0, color: '#475569' }}>
-                طريقة الحساب: (الطول + العرض) × {invoice.meterPrice || FIXED_METER_PRICE} دينار للمتر
+                طريقة الحساب: (الطول × العرض) ÷ 10,000 × سعر المتر ({invoice.meterPrice || FIXED_METER_PRICE} د) + الرسوم الإضافية
               </div>
               {(invoice.invoiceNotes || invoice.notes) && (
                 <div style={{ marginTop: '8px', padding: '6px 10px', backgroundColor: '#f1f5f9', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '11px', color: '#1e293b' }}>
@@ -814,7 +831,7 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
                   marginBottom: '10px',
                 }}
               >
-                <span style={{ color: '#475569' }}>مجموع الأمتار (الطول + العرض):</span>
+                <span style={{ color: '#475569' }}>إجمالي المساحة (م²):</span>
                 <span
                   style={{
                     fontWeight: 700,

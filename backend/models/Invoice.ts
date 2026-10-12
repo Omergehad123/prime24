@@ -29,18 +29,21 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export type ProductType = 'black_screen' | 'black_out';
 export type LayerType = 'single' | 'double';
+export type ColorChoice = 'white' | 'black' | 'other';
 export type BlackOutColor = 'gray' | 'black' | 'beige' | 'brown' | 'رصاصي' | 'أسود' | 'بيج' | 'بني';
 
 export interface IInvoiceItem {
   id: string;
   type: ProductType; // 'black_screen' | 'black_out'
   productType?: ProductType; // alias for compatibility
-  length: number; // الطول
-  width: number; // العرض
-  totalDimensions: number; // يحسب تلقائياً = الطول + العرض
-  colorCode: string | number; // رقم إذا كان بلاك سكرين، أو أحد الألوان الـ 4 إذا كان بلاك أوت
+  length: number; // الطول (سم)
+  width: number; // العرض (سم)
+  totalDimensions: number; // يحسب تلقائياً = (الطول × العرض) ÷ 10000
+  colorChoice?: ColorChoice; // 'white' | 'black' | 'other'
+  customColorNumber?: string | number;
+  colorCode: string | number; // أبيض | أسود | كود اللون
   layerType: LayerType; // 'single' | 'double'
-  itemPrice: number; // يحسب تلقائياً = totalDimensions * meterPrice
+  itemPrice: number; // يحسب تلقائياً = (الأبعاد × سعر المتر) + (دبل ? 10 : 0) + (آخر ? 5 : 0)
   notes: string; // ملاحظة البند
 }
 
@@ -95,10 +98,19 @@ const InvoiceItemSchema = new Schema<IInvoiceItem>(
       min: 0,
       default: 0,
     },
+    colorChoice: {
+      type: String,
+      enum: ['white', 'black', 'other'],
+      default: 'white',
+    },
+    customColorNumber: {
+      type: Schema.Types.Mixed,
+      default: '',
+    },
     colorCode: {
       type: Schema.Types.Mixed,
       required: [true, 'كود اللون أو اختياره مطلوب'],
-      default: '1',
+      default: 'أبيض',
     },
     layerType: {
       type: String,
@@ -189,10 +201,12 @@ const InvoiceSchema = new Schema<IInvoice>(
 );
 
 // Pre-validate hook:
-// 1. totalDimensions = length + width
-// 2. itemPrice = totalDimensions * meterPrice (Area Price)
-// 3. totalMeters = sum of all totalDimensions
-// 4. grandTotal = totalMeters * meterPrice
+// 1. totalDimensions (m²) = (length × width) / 10000
+// 2. layerFee = 10 if double, 0 if single
+// 3. colorFee = 0 if white/black, 5 if other
+// 4. itemPrice = (totalDimensions * meterPrice) + layerFee + colorFee
+// 5. totalMeters = sum of all totalDimensions
+// 6. grandTotal = sum of all itemPrices
 InvoiceSchema.pre('validate', function (this: any) {
   let computedTotalMeters = 0;
   let computedGrandTotal = 0;
@@ -203,15 +217,68 @@ InvoiceSchema.pre('validate', function (this: any) {
     this.items = this.items.map((item: any) => {
       const length = Math.max(0, Number(item.length) || 0);
       const width = Math.max(0, Number(item.width) || 0);
-      // حساب إجمالي الأبعاد تلقائياً: الطول + العرض
-      const totalDimensions = Number((length + width).toFixed(4));
-      // حساب سعر البند تلقائياً: الأبعاد × سعر المتر (Area Price)
-      const itemPrice = Number((totalDimensions * currentAreaPrice).toFixed(2));
+      // حساب إجمالي الأبعاد (م²): (الطول_سم × العرض_سم) ÷ 10,000
+      const totalDimensions = Number(((length * width) / 10000).toFixed(4));
+
+      const layerType = item.layerType || 'single';
+      const layerFee = layerType === 'double' ? 10 : 0;
+
+      // Color choice resolution: white & black are free, other adds 5 denar
+      let colorChoice = item.colorChoice;
+      const rawColorStr = String(item.colorCode ?? '').trim().toLowerCase();
+      if (!colorChoice) {
+        if (
+          rawColorStr === 'أبيض' ||
+          rawColorStr === 'ابيض' ||
+          rawColorStr === 'white'
+        ) {
+          colorChoice = 'white';
+        } else if (
+          rawColorStr === 'أسود' ||
+          rawColorStr === 'اسود' ||
+          rawColorStr === 'black'
+        ) {
+          colorChoice = 'black';
+        } else {
+          colorChoice = 'other';
+        }
+      }
+
+      const isFree =
+        colorChoice === 'white' ||
+        colorChoice === 'black' ||
+        rawColorStr === 'أبيض' ||
+        rawColorStr === 'ابيض' ||
+        rawColorStr === 'white' ||
+        rawColorStr === 'أسود' ||
+        rawColorStr === 'اسود' ||
+        rawColorStr === 'black';
+
+      const colorFee = isFree ? 0 : 5;
+
+      // حساب سعر البند تلقائياً = (الأبعاد × سعر المتر) + رسوم الدبل + رسوم اللون الخاص
+      const itemPrice = Number(
+        (totalDimensions * currentAreaPrice + layerFee + colorFee).toFixed(2)
+      );
 
       computedTotalMeters += totalDimensions;
       computedGrandTotal += itemPrice;
 
       const pType = (item.type || item.productType || this.invoiceType || 'black_screen') as ProductType;
+
+      let finalColorCode = item.colorCode;
+      if (colorChoice === 'white') {
+        finalColorCode = 'أبيض';
+      } else if (colorChoice === 'black') {
+        finalColorCode = 'أسود';
+      } else if (colorChoice === 'other') {
+        finalColorCode =
+          item.customColorNumber !== undefined && item.customColorNumber !== ''
+            ? item.customColorNumber
+            : item.colorCode !== undefined
+            ? item.colorCode
+            : '';
+      }
 
       return {
         ...item,
@@ -221,9 +288,11 @@ InvoiceSchema.pre('validate', function (this: any) {
         length,
         width,
         totalDimensions,
+        layerType,
+        colorChoice,
+        customColorNumber: item.customColorNumber ?? (colorChoice === 'other' ? finalColorCode : ''),
+        colorCode: finalColorCode,
         itemPrice,
-        layerType: item.layerType || 'single',
-        colorCode: item.colorCode !== undefined ? item.colorCode : (pType === 'black_screen' ? 1 : 'beige'),
         notes: item.notes || '',
       };
     });
