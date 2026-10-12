@@ -160,33 +160,30 @@ export const ArchiveDashboardPage: React.FC<ArchiveDashboardPageProps> = ({
               <button
                 type="button"
                 onClick={() => setTypeFilter('all')}
-                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                  typeFilter === 'all'
+                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${typeFilter === 'all'
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
-                }`}
+                  }`}
               >
                 الكل
               </button>
               <button
                 type="button"
                 onClick={() => setTypeFilter('black_screen')}
-                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                  typeFilter === 'black_screen'
+                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${typeFilter === 'black_screen'
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
-                }`}
+                  }`}
               >
-                بلاك سكرين
+                شبك
               </button>
               <button
                 type="button"
                 onClick={() => setTypeFilter('black_out')}
-                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                  typeFilter === 'black_out'
+                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${typeFilter === 'black_out'
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
-                }`}
+                  }`}
               >
                 بلاك أوت
               </button>
@@ -257,16 +254,16 @@ export const ArchiveDashboardPage: React.FC<ArchiveDashboardPageProps> = ({
                 {invoices.map((inv) => {
                   const dateFormatted = inv.createdAt
                     ? new Date(inv.createdAt).toLocaleDateString('ar-EG', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                      })
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })
                     : '—';
                   const timeFormatted = inv.createdAt
                     ? new Date(inv.createdAt).toLocaleTimeString('ar-EG', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
                     : '';
 
                   const hasBlackScreen = inv.items.some((i) => i.productType === 'black_screen');
@@ -275,8 +272,8 @@ export const ArchiveDashboardPage: React.FC<ArchiveDashboardPageProps> = ({
                     hasBlackScreen && hasBlackOut
                       ? 'بلاك سكرين · بلاك أوت'
                       : hasBlackOut
-                      ? 'بلاك أوت'
-                      : 'بلاك سكرين';
+                        ? 'بلاك أوت'
+                        : 'بلاك سكرين';
 
                   return (
                     <tr
@@ -309,8 +306,7 @@ export const ArchiveDashboardPage: React.FC<ArchiveDashboardPageProps> = ({
                             .slice(0, 3)
                             .map(
                               (it) =>
-                                `${it.productType === 'black_out' ? 'بلاك أوت' : 'سكرين'} (${
-                                  it.colorCode
+                                `${it.productType === 'black_out' ? 'بلاك أوت' : 'سكرين'} (${it.colorCode
                                 } - ${it.layerType === 'double' ? 'دبل' : 'سنجل'})`
                             )
                             .join(' ، ')}
