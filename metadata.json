@@ -1,0 +1,6 @@
+{
+  "name": "MetraBill — نظام الفواتير وحساب المساحات المخصص",
+  "description": "نظام فواتير وحسابات هندسية وتجارية متكامل (Full-Stack React + Node.js/Express + MongoDB) لحساب المساحات والأمتار مع أرشيف متقدم وتقارير طباعة.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

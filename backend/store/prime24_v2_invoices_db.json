@@ -1,0 +1,27 @@
+[
+  {
+    "invoiceNumber": "INV-1001",
+    "sequenceNumber": 1001,
+    "brandName": "Prime 24",
+    "meterPrice": 10,
+    "invoiceType": "black_screen",
+    "items": [
+      {
+        "id": "item-1791724547960-if7g7",
+        "productType": "black_screen",
+        "length": 2,
+        "width": 1.5,
+        "totalDimensions": 3.5,
+        "colorCode": "101",
+        "layerType": "single",
+        "itemPrice": 35,
+        "notes": ""
+      }
+    ],
+    "totalMeters": 3.5,
+    "grandTotal": 35,
+    "_id": "6acb8c067fec690e1b37962c",
+    "createdAt": "2026-10-11T13:15:50.439Z",
+    "updatedAt": "2026-10-11T13:15:50.439Z"
+  }
+]
