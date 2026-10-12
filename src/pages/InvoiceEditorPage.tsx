@@ -3,9 +3,9 @@
  * @description إنشاء وتعديل الفاتورة (Prime 24) المتصلة بـ MongoDB Atlas.
  * 
  * الميزات:
- * 1. الطول والعرض يحسبان تلقائياً إجمالي الأبعاد (الطول + العرض).
+ * 1. الطول والعرض يحسبان تلقائياً إجمالي الأبعاد (الطول × العرض).
  * 2. سعر المتر / المساحة (Area Price): افتراضياً 10 (أو 5 أو أي رقم)، ويمكن للمدير تعديله في كل فاتورة.
- * 3. يتم احتساب سعر البند تلقائياً: (الطول + العرض) × سعر المتر المحدد.
+ * 3. يتم احتساب سعر البند تلقائياً: (الطول × العرض) × سعر المتر المحدد.
  * 4. نوع المنتج: بلاك سكرين (black_screen) أو بلاك أوت (black_out):
  *    - بلاك سكرين: حقل رقمي (Input Number) لكود اللون.
  *    - بلاك أوت: قائمة اختيار من 4 ألوان: gray || black || beige || brown (رصاصي، أسود، بيج، بني).
@@ -380,7 +380,7 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
                 منتجات وبنود الفاتورة ({brandName})
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                المعادلة: الأبعاد = (الطول + العرض) | سعر البند = الأبعاد × {meterPrice} دينار
+                المعادلة: الأبعاد = (الطول × العرض) | سعر البند = الأبعاد × {meterPrice} دينار
               </p>
             </div>
 
@@ -419,7 +419,7 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
                   <th className="py-3.5 px-4 w-36">النوع (Type)</th>
                   <th className="py-3.5 px-4 w-28">الطول (L)</th>
                   <th className="py-3.5 px-4 w-28">العرض (W)</th>
-                  <th className="py-3.5 px-4 w-32">إجمالي الأبعاد (L+W)</th>
+                  <th className="py-3.5 px-4 w-32">إجمالي الأبعاد (L×W)</th>
                   <th className="py-3.5 px-4 w-44">كود اللون / اللون</th>
                   <th className="py-3.5 px-4 w-36">الطبقة (سنجل / دبل)</th>
                   <th className="py-3.5 px-4 w-32">سعر البند ({meterPrice}د)</th>
@@ -465,7 +465,7 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
                             handleItemDimensionChange(item.id, 'length', e.target.value)
                           }
                           placeholder="الطول"
-                          className="w-full px-2.5 py-2 text-sm font-mono-num bg-white border border-slate-200 rounded-md focus:border-slate-900 focus:outline-none"
+                          className="w-full min-w-[80px] px-2.5 py-2 text-sm font-mono-num bg-white border border-slate-200 rounded-md focus:border-slate-900 focus:outline-none"
                         />
                       </td>
 
@@ -482,7 +482,7 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
                             handleItemDimensionChange(item.id, 'width', e.target.value)
                           }
                           placeholder="العرض"
-                          className="w-full px-2.5 py-2 text-sm font-mono-num bg-white border border-slate-200 rounded-md focus:border-slate-900 focus:outline-none"
+                          className="w-full min-w-[80px] px-2.5 py-2 text-sm font-mono-num bg-white border border-slate-200 rounded-md focus:border-slate-900 focus:outline-none"
                         />
                       </td>
 
