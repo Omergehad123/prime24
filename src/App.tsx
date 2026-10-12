@@ -73,7 +73,7 @@ export default function App() {
                 }}
                 className="w-5 h-5 rounded object-cover"
               />
-              <span>Prime 24 — نظام الفواتير (بلاك سكرين & بلاك أوت)</span>
+              <span>Prime 24 — نظام الفواتير (شبك & بلاك أوت)</span>
             </div>
             <span>استخراج PDF وطباعة الفاتورة المستقلة</span>
           </div>

@@ -250,7 +250,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             نظام الفواتير وحساب المساحات
           </p>
           <p className="text-[10px] text-slate-400 font-mono">
-            بلاك سكرين & بلاك أوت
+            شبك & بلاك أوت
           </p>
         </div>
       </aside>

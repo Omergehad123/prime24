@@ -6,8 +6,8 @@
  * 1. الطول والعرض يحسبان تلقائياً إجمالي الأبعاد (الطول × العرض).
  * 2. سعر المتر / المساحة (Area Price): افتراضياً 10 (أو 5 أو أي رقم)، ويمكن للمدير تعديله في كل فاتورة.
  * 3. يتم احتساب سعر البند تلقائياً: (الطول × العرض) × سعر المتر المحدد.
- * 4. نوع المنتج: بلاك سكرين (black_screen) أو بلاك أوت (black_out):
- *    - بلاك سكرين: حقل رقمي (Input Number) لكود اللون.
+ * 4. نوع المنتج: شبك (black_screen) أو بلاك أوت (black_out):
+ *    - شبك: حقل رقمي (Input Number) لكود اللون.
  *    - بلاك أوت: قائمة اختيار من 4 ألوان: gray || black || beige || brown (رصاصي، أسود، بيج، بني).
  * 5. نوع الطبقة: سنجل (single) أو دبل (double).
  * 6. ملاحظة لكل بند + ملاحظة عامة للفاتورة.
@@ -49,8 +49,8 @@ interface InvoiceEditorPageProps {
 }
 
 function createProductRow(productType: ProductType, currentMeterPrice: number): InvoiceItem {
-  const defaultLen = 2.0;
-  const defaultWid = 1.5;
+  const defaultLen = 200;
+  const defaultWid = 150;
   const totalDimensions = calculateItemMeters(defaultLen, defaultWid);
 
   return {
@@ -380,7 +380,7 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
                 منتجات وبنود الفاتورة ({brandName})
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                المعادلة: الأبعاد = (الطول × العرض) | سعر البند = الأبعاد × {meterPrice} دينار
+                المعادلة: الأبعاد (م²) = (الطول_سم × العرض_سم) ÷ 10,000 | سعر البند = الأبعاد × {meterPrice} دينار
               </p>
             </div>
 
@@ -395,7 +395,7 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
                 className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ إضافة بلاك سكرين</span>
+                <span>+ إضافة شبك</span>
               </button>
 
               <button
@@ -417,8 +417,8 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
                   <th className="py-3.5 px-4 w-36">النوع (Type)</th>
-                  <th className="py-3.5 px-4 w-28">الطول (L)</th>
-                  <th className="py-3.5 px-4 w-28">العرض (W)</th>
+                  <th className="py-3.5 px-4 w-28">الطول (سم)</th>
+                  <th className="py-3.5 px-4 w-28">العرض (سم)</th>
                   <th className="py-3.5 px-4 w-32">إجمالي الأبعاد (L×W)</th>
                   <th className="py-3.5 px-4 w-44">كود اللون / اللون</th>
                   <th className="py-3.5 px-4 w-36">الطبقة (سنجل / دبل)</th>
@@ -447,7 +447,7 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
                           }
                           className="w-full px-2.5 py-2 text-xs font-bold bg-slate-50 border border-slate-200 rounded-md text-slate-900 focus:bg-white focus:border-slate-900 focus:outline-none cursor-pointer"
                         >
-                          <option value="black_screen">بلاك سكرين (Black Screen)</option>
+                          <option value="black_screen">شبك</option>
                           <option value="black_out">بلاك أوت (Black Out)</option>
                         </select>
                       </td>
@@ -490,7 +490,7 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
                       <td className="py-3 px-4">
                         <div className="px-2.5 py-1.5 bg-slate-100 rounded text-center">
                           <span className="font-mono-num font-bold text-slate-900 text-xs">
-                            {formatDimension(item.totalDimensions)} م
+                            {formatDimension(item.totalDimensions)} م²
                           </span>
                         </div>
                       </td>
@@ -620,14 +620,14 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
               >
                 <Plus className="w-4 h-4" />
                 <span>
-                  + إضافة بند ({defaultProductType === 'black_screen' ? 'بلاك سكرين' : 'بلاك أوت'})
+                  + إضافة بند ({defaultProductType === 'black_screen' ? 'شبك' : 'بلاك أوت'})
                 </span>
               </button>
 
               <span className="text-xs text-slate-600 bg-white px-3 py-1.5 rounded-md border border-slate-200">
-                إجمالي الأمتار:{' '}
+                إجمالي المساحة:{' '}
                 <strong className="font-mono-num text-slate-900 font-bold">
-                  {formatDimension(effectiveState.totalMeters)} متر
+                  {formatDimension(effectiveState.totalMeters)} م²
                 </strong>{' '}
                 × {meterPrice} دينار
               </span>

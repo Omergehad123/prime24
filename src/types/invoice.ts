@@ -26,7 +26,7 @@ export interface InvoiceItem {
   length: number; // الطول
   width: number; // العرض
   totalDimensions: number; // الطول × العرض
-  colorCode: string | number; // بلاك سكرين: رقم يدخله المستخدم | بلاك أوت: gray || black || beige || brown
+  colorCode: string | number; // شبك: رقم يدخله المستخدم | بلاك أوت: gray || black || beige || brown
   layerType: LayerType; // 'single' | 'double'
   itemPrice: number; // يحسب تلقائياً = totalDimensions * meterPrice
   notes: string; // ملاحظة للبند

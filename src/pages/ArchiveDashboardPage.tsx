@@ -270,10 +270,10 @@ export const ArchiveDashboardPage: React.FC<ArchiveDashboardPageProps> = ({
                   const hasBlackOut = inv.items.some((i) => i.productType === 'black_out');
                   const productsSummary =
                     hasBlackScreen && hasBlackOut
-                      ? 'بلاك سكرين · بلاك أوت'
+                      ? 'شبك · بلاك أوت'
                       : hasBlackOut
                         ? 'بلاك أوت'
-                        : 'بلاك سكرين';
+                        : 'شبك';
 
                   return (
                     <tr

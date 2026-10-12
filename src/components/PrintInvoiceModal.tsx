@@ -521,7 +521,7 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
                     margin: '6px 0 0 0',
                   }}
                 >
-                  فاتورة رسمية · بلاك سكرين & بلاك أوت
+                  فاتورة رسمية · شبك & بلاك أوت
                 </p>
               </div>
             </div>

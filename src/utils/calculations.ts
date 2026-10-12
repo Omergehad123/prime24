@@ -2,9 +2,10 @@
  * @file src/utils/calculations.ts
  * @description Mathematical calculation functions for Prime 24 Invoice items and totals.
  * Formula:
- * - Total Dimensions = (length × width)
+ * - Inputs are in CENTIMETERS (cm).
+ * - Total Dimensions (m²) = (length_cm × width_cm) / 10000
  * - Item Price = totalDimensions * meterPrice (Area Price)
- * - Total Meters = sum of totalDimensions
+ * - Total Meters = sum of totalDimensions (in m²)
  * - Grand Total = sum of Item Prices (or totalMeters * meterPrice)
  */
 
@@ -13,12 +14,13 @@ import { InvoiceItem, ProductType, DEFAULT_METER_PRICE } from '../types/invoice'
 export const FIXED_METER_PRICE = DEFAULT_METER_PRICE;
 
 /**
- * Calculates total dimensions = (length × width) rounded to 4 decimal places.
+ * Calculates total area in m² from cm inputs.
+ * Formula: (length_cm × width_cm) / 10000
  */
 export function calculateItemMeters(length: number, width: number): number {
   const safeLength = Math.max(0, Number(length) || 0);
   const safeWidth = Math.max(0, Number(width) || 0);
-  return Number((safeLength * safeWidth).toFixed(4));
+  return Number(((safeLength * safeWidth) / 10000).toFixed(4));
 }
 
 /**
@@ -71,7 +73,7 @@ export function recalculateAllItems(
 }
 
 export function getProductLabel(type: ProductType): string {
-  return type === 'black_out' ? 'بلاك أوت' : 'بلاك سكرين';
+  return type === 'black_out' ? 'بلاك أوت' : 'شبك';
 }
 
 export function formatCurrency(amount: number): string {
