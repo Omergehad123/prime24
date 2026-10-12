@@ -40,21 +40,49 @@ export function isFreeColor(colorChoice?: string, colorCode?: string | number): 
 }
 
 /**
+ * Returns user-friendly Arabic label for Black Out fabric colors.
+ * All 4 colors (gray, black, beige, brown) are 100% free.
+ */
+export function getBlackOutColorLabel(val?: string): string {
+  switch (val) {
+    case 'gray':
+    case 'رصاصي':
+      return 'رصاصي';
+    case 'black':
+    case 'أسود':
+    case 'اسود':
+      return 'أسود';
+    case 'beige':
+    case 'بيج':
+      return 'بيج';
+    case 'brown':
+    case 'بني':
+      return 'بني';
+    default:
+      return val || 'أسود';
+  }
+}
+
+/**
  * Calculates extra fees for a line item based on:
  * - layerType: 'double' adds 10 denar, 'single' adds 0.
- * - colorChoice: 'other' adds 5 denar, 'white'/'black' adds 0 (free).
+ * - Frame Color (for both شبك and بلاك أوت): 'white' and 'black' are free (0), 'other' adds 5 denar.
+ * - Black Out fabric colors: all 4 colors are free (0).
  */
 export function getItemExtraFees(
   layerType: LayerType = 'single',
   colorChoice: ColorChoice = 'white',
-  colorCode?: string | number
+  colorCode?: string | number,
+  frameColorChoice?: ColorChoice
 ): {
   layerFee: number;
   colorFee: number;
   totalExtra: number;
 } {
   const layerFee = layerType === 'double' ? DOUBLE_LAYER_EXTRA_FEE : 0;
-  const colorFee = isFreeColor(colorChoice, colorCode) ? 0 : OTHER_COLOR_EXTRA_FEE;
+  const effectiveFrameChoice = frameColorChoice || colorChoice;
+  const colorFee = effectiveFrameChoice === 'other' ? OTHER_COLOR_EXTRA_FEE : 0;
+
   return {
     layerFee,
     colorFee,
@@ -74,7 +102,7 @@ export function calculateItemMeters(length: number, width: number): number {
 
 /**
  * Calculates item price automatically:
- * (Area in m² × meterPrice) + (10 if double) + (5 if other color)
+ * (Area in m² × meterPrice) + (10 if double) + (5 if other frame color)
  */
 export function calculateItemPrice(
   length: number,
@@ -82,18 +110,19 @@ export function calculateItemPrice(
   meterPrice: number = DEFAULT_METER_PRICE,
   layerType: LayerType = 'single',
   colorChoice: ColorChoice = 'white',
-  colorCode?: string | number
+  colorCode?: string | number,
+  frameColorChoice?: ColorChoice
 ): number {
   const totalMeters = calculateItemMeters(length, width);
   const safeRate = Math.max(0, Number(meterPrice !== undefined ? meterPrice : DEFAULT_METER_PRICE));
   const basePrice = totalMeters * safeRate;
-  const { totalExtra } = getItemExtraFees(layerType, colorChoice, colorCode);
+  const { totalExtra } = getItemExtraFees(layerType, colorChoice, colorCode, frameColorChoice);
   return Number((basePrice + totalExtra).toFixed(2));
 }
 
 /**
  * Recalculates an entire array of invoice items automatically with the given meterPrice,
- * summing up dimensions, layer fees, color fees, and the overall grand total.
+ * summing up dimensions, layer fees, frame color fees, and the overall grand total.
  */
 export function recalculateAllItems(
   items: InvoiceItem[],
@@ -113,22 +142,30 @@ export function recalculateAllItems(
 
   const updatedItems = items.map((item) => {
     const totalDimensions = calculateItemMeters(item.length, item.width);
+    const pType = item.type || item.productType || 'black_screen';
+    const isBlackOut = pType === 'black_out';
 
-    // Resolve colorChoice if undefined
-    let resolvedChoice: ColorChoice = item.colorChoice || 'white';
-    if (!item.colorChoice) {
-      if (isFreeColor(undefined, item.colorCode)) {
-        const str = String(item.colorCode ?? '').trim().toLowerCase();
-        resolvedChoice = str.includes('أسود') || str.includes('اسود') || str === 'black' ? 'black' : 'white';
-      } else {
-        resolvedChoice = 'other';
+    // Resolve frame color choice (white/black are free, other adds 5)
+    let resolvedFrameChoice: ColorChoice = item.frameColorChoice || item.colorChoice || 'white';
+    if (!item.frameColorChoice && !item.colorChoice) {
+      const candidate = String(item.frameColor ?? item.colorCode ?? '').trim().toLowerCase();
+      if (candidate === 'أبيض' || candidate === 'ابيض' || candidate === 'white') {
+        resolvedFrameChoice = 'white';
+      } else if (candidate === 'أسود' || candidate === 'اسود' || candidate === 'black') {
+        resolvedFrameChoice = 'black';
+      } else if (['gray', 'beige', 'brown', 'رصاصي', 'بيج', 'بني'].includes(candidate)) {
+        // Old blackout fabric color candidate, default frame to white
+        resolvedFrameChoice = 'white';
+      } else if (candidate) {
+        resolvedFrameChoice = 'other';
       }
     }
 
     const { layerFee, colorFee, totalExtra } = getItemExtraFees(
       item.layerType,
-      resolvedChoice,
-      item.colorCode
+      resolvedFrameChoice,
+      item.colorCode,
+      resolvedFrameChoice
     );
 
     const basePrice = totalDimensions * safeRate;
@@ -139,27 +176,40 @@ export function recalculateAllItems(
     totalDoubleFees += layerFee;
     totalColorFees += colorFee;
 
-    // Resolve colorCode
-    let finalColorCode = item.colorCode;
-    if (resolvedChoice === 'white') {
-      finalColorCode = 'أبيض';
-    } else if (resolvedChoice === 'black') {
-      finalColorCode = 'أسود';
-    } else if (resolvedChoice === 'other') {
-      finalColorCode =
+    // Resolve frame color
+    let finalFrameColor: string | number = 'أبيض';
+    if (resolvedFrameChoice === 'white') {
+      finalFrameColor = 'أبيض';
+    } else if (resolvedFrameChoice === 'black') {
+      finalFrameColor = 'أسود';
+    } else {
+      finalFrameColor =
         item.customColorNumber !== undefined && item.customColorNumber !== ''
           ? item.customColorNumber
+          : item.frameColor !== undefined && item.frameColor !== ''
+          ? item.frameColor
           : typeof item.colorCode === 'number' ||
             (typeof item.colorCode === 'string' &&
-              !['أبيض', 'ابيض', 'white', 'أسود', 'اسود', 'black'].includes(item.colorCode))
+              !['أبيض', 'ابيض', 'white', 'أسود', 'اسود', 'black', 'gray', 'beige', 'brown', 'رصاصي', 'بيج', 'بني'].includes(item.colorCode))
           ? item.colorCode
           : '';
     }
 
+    // Resolve blackout fabric color (default 'black')
+    const finalBlackOutColor = isBlackOut
+      ? item.blackOutColor || (['gray', 'black', 'beige', 'brown', 'رصاصي', 'أسود', 'بيج', 'بني'].includes(String(item.colorCode)) ? String(item.colorCode) : 'black')
+      : undefined;
+
     return {
       ...item,
-      colorChoice: resolvedChoice,
-      colorCode: finalColorCode,
+      type: pType,
+      productType: pType,
+      colorChoice: resolvedFrameChoice,
+      frameColorChoice: resolvedFrameChoice,
+      frameColor: finalFrameColor,
+      customColorNumber: resolvedFrameChoice === 'other' ? finalFrameColor : '',
+      blackOutColor: finalBlackOutColor,
+      colorCode: isBlackOut ? finalFrameColor : finalFrameColor,
       totalDimensions,
       itemPrice,
     };

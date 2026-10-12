@@ -64,8 +64,11 @@ function createProductRow(productType: ProductType, currentMeterPrice: number): 
     width: defaultWid,
     totalDimensions,
     colorChoice: 'white',
+    frameColorChoice: 'white',
     customColorNumber: '',
-    colorCode: productType === 'black_screen' ? 'أبيض' : 'black',
+    colorCode: 'أبيض',
+    frameColor: 'أبيض',
+    blackOutColor: productType === 'black_out' ? 'black' : undefined,
     layerType: 'single',
     itemPrice: calculateItemPrice(defaultLen, defaultWid, currentMeterPrice, 'single', 'white'),
     notes: '',
@@ -106,14 +109,17 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
         editingInvoice.items && editingInvoice.items.length > 0
           ? editingInvoice.items.map((it) => {
               const pType = it.type || it.productType || editingInvoice.invoiceType || 'black_screen';
-              let resolvedChoice: ColorChoice = it.colorChoice || 'white';
-              if (!it.colorChoice) {
-                const raw = String(it.colorCode ?? '').trim().toLowerCase();
+              const isBlackOut = pType === 'black_out';
+              let resolvedChoice: ColorChoice = it.frameColorChoice || it.colorChoice || 'white';
+              if (!it.frameColorChoice && !it.colorChoice) {
+                const raw = String(it.frameColor ?? it.colorCode ?? '').trim().toLowerCase();
                 if (raw === 'أبيض' || raw === 'ابيض' || raw === 'white') {
                   resolvedChoice = 'white';
                 } else if (raw === 'أسود' || raw === 'اسود' || raw === 'black') {
                   resolvedChoice = 'black';
-                } else {
+                } else if (['gray', 'beige', 'brown', 'رصاصي', 'بيج', 'بني'].includes(raw)) {
+                  resolvedChoice = 'white';
+                } else if (raw) {
                   resolvedChoice = 'other';
                 }
               }
@@ -121,15 +127,26 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
                 it.customColorNumber !== undefined && it.customColorNumber !== ''
                   ? it.customColorNumber
                   : resolvedChoice === 'other'
-                  ? it.colorCode
+                  ? (it.frameColor || it.colorCode)
                   : '';
+              const resolvedBlackOutColor = isBlackOut
+                ? it.blackOutColor || (['gray', 'black', 'beige', 'brown', 'رصاصي', 'أسود', 'بيج', 'بني'].includes(String(it.colorCode)) ? String(it.colorCode) : 'black')
+                : undefined;
               return {
                 ...it,
                 type: pType,
                 productType: pType,
                 layerType: it.layerType || 'single',
                 colorChoice: resolvedChoice,
+                frameColorChoice: resolvedChoice,
                 customColorNumber: customVal,
+                frameColor:
+                  resolvedChoice === 'white'
+                    ? 'أبيض'
+                    : resolvedChoice === 'black'
+                    ? 'أسود'
+                    : customVal,
+                blackOutColor: resolvedBlackOutColor,
                 colorCode:
                   resolvedChoice === 'white'
                     ? 'أبيض'
@@ -193,14 +210,28 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
     setItems((prev) =>
       prev.map((item) => {
         if (item.id !== id) return item;
-        const defaultColor = newType === 'black_screen' ? 'أبيض' : 'black';
         return {
           ...item,
           type: newType,
           productType: newType,
           colorChoice: 'white',
+          frameColorChoice: 'white',
           customColorNumber: '',
-          colorCode: defaultColor,
+          colorCode: 'أبيض',
+          frameColor: 'أبيض',
+          blackOutColor: newType === 'black_out' ? (item.blackOutColor || 'black') : undefined,
+        };
+      })
+    );
+  };
+
+  const handleBlackOutColorChange = (id: string, blackOutColor: string) => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        return {
+          ...item,
+          blackOutColor,
         };
       })
     );
@@ -254,6 +285,8 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
         return {
           ...item,
           colorChoice,
+          frameColorChoice: colorChoice,
+          frameColor: finalCode,
           colorCode: finalCode,
         };
       })
@@ -267,6 +300,7 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
         return {
           ...item,
           customColorNumber,
+          frameColor: customColorNumber,
           colorCode: customColorNumber,
         };
       })
@@ -291,8 +325,11 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
       productType: it.productType || it.type,
       layerType: it.layerType,
       colorChoice: it.colorChoice,
+      frameColorChoice: it.frameColorChoice || it.colorChoice,
       customColorNumber: it.customColorNumber,
       colorCode: it.colorCode,
+      frameColor: it.frameColor || it.colorCode,
+      blackOutColor: it.blackOutColor,
       itemPrice: it.itemPrice,
     })),
     totalMeters: effectiveState.totalMeters,
@@ -492,7 +529,7 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
                   <th className="py-3.5 px-4 w-28">الطول (سم)</th>
                   <th className="py-3.5 px-4 w-28">العرض (سم)</th>
                   <th className="py-3.5 px-4 w-32">إجمالي الأبعاد (L×W)</th>
-                  <th className="py-3.5 px-4 w-52">كود اللون / اللون</th>
+                  <th className="py-3.5 px-4 w-60">اللون ولون الفريم</th>
                   <th className="py-3.5 px-4 w-40">الطبقة (سنجل / دبل)</th>
                   <th className="py-3.5 px-4 w-36">سعر البند ({meterPrice}د)</th>
                   <th className="py-3.5 px-4 min-w-[200px]">ملاحظة</th>
@@ -570,11 +607,19 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
                       </td>
 
                       {/* 5. Color Code / Selection:
-                          - 3 choices: أبيض (مجاني) & أسود (مجاني) & آخر (+5 دينار)
-                          - If 'آخر' is selected: open input to enter color code number */}
+                          - شبك: لون الفريم (أبيض / أسود مجاني | آخر +5 د)
+                          - بلاك أوت: ألوان البلاك أوت الـ 4 مجانية + اختيار لون الفريم (أبيض / أسود مجاني | آخر +5 د) */}
                       <td className="py-3 px-4">
                         {isBlackScreen ? (
                           <div className="space-y-1.5">
+                            <div className="flex items-center justify-between text-[11px] text-slate-600 font-semibold px-0.5">
+                              <span>لون الفريم (الإطار):</span>
+                              {!isOtherColor && (
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                  مجاني
+                                </span>
+                              )}
+                            </div>
                             {/* 3 Pill buttons for color choice */}
                             <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-md">
                               <button
@@ -638,46 +683,123 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
                                   </span>
                                 </div>
                                 <div className="text-[10px] text-amber-700 font-semibold flex items-center justify-between">
-                                  <span>لون مخصص</span>
+                                  <span>لون إطار مخصص</span>
                                   <span>+5 دينار للإجمالي</span>
                                 </div>
                               </div>
                             ) : (
                               <div className="text-center">
                                 <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
-                                  مجاني (0 دينار)
+                                  فريم مجاني (0 دينار)
                                 </span>
                               </div>
                             )}
                           </div>
                         ) : (
-                          <div className="space-y-1">
-                            <select
-                              aria-label={`لون بلاك أوت للبند ${index + 1}`}
-                              value={String(item.colorCode)}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                const isBlack = val === 'black' || val === 'أسود';
-                                handleColorChoiceChange(item.id, isBlack ? 'black' : 'other');
-                                handleCustomColorNumberChange(item.id, val);
-                              }}
-                              className="w-full px-2.5 py-2 text-xs font-semibold bg-white border border-slate-200 rounded-md text-slate-900 focus:border-slate-900 focus:outline-none cursor-pointer"
-                            >
-                              {BLACK_OUT_COLOR_OPTIONS.map((opt) => (
-                                <option key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </option>
-                              ))}
-                            </select>
-                            <div className="text-center">
-                              {item.colorCode === 'black' || item.colorCode === 'أسود' ? (
-                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
-                                  مجاني (0 دينار)
+                          <div className="space-y-2">
+                            {/* 1. Blackout Fabric Color (4 Colors - all free!) */}
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-[11px] text-slate-600 font-semibold px-0.5">
+                                <span>لون البلاك أوت:</span>
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                  مجاني
                                 </span>
+                              </div>
+                              <select
+                                aria-label={`لون بلاك أوت للبند ${index + 1}`}
+                                value={item.blackOutColor || 'black'}
+                                onChange={(e) => handleBlackOutColorChange(item.id, e.target.value)}
+                                className="w-full px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-md text-slate-900 focus:border-slate-900 focus:outline-none cursor-pointer"
+                              >
+                                {BLACK_OUT_COLOR_OPTIONS.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* 2. Frame Color Selection (أبيض / أسود / آخر) */}
+                            <div className="space-y-1 pt-1.5 border-t border-slate-200/80">
+                              <div className="flex items-center justify-between text-[11px] text-slate-600 font-semibold px-0.5">
+                                <span>لون الفريم (الإطار):</span>
+                                {!isOtherColor && (
+                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                    مجاني
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-md">
+                                <button
+                                  type="button"
+                                  onClick={() => handleColorChoiceChange(item.id, 'white')}
+                                  className={`flex-1 py-1.5 text-xs font-semibold rounded transition-all cursor-pointer whitespace-nowrap ${
+                                    item.colorChoice === 'white'
+                                      ? 'bg-white text-slate-900 shadow-xs font-bold ring-1 ring-slate-300'
+                                      : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  أبيض
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleColorChoiceChange(item.id, 'black')}
+                                  className={`flex-1 py-1.5 text-xs font-semibold rounded transition-all cursor-pointer whitespace-nowrap ${
+                                    item.colorChoice === 'black'
+                                      ? 'bg-white text-slate-900 shadow-xs font-bold ring-1 ring-slate-300'
+                                      : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  أسود
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleColorChoiceChange(item.id, 'other')}
+                                  className={`flex-1 py-1.5 text-xs font-semibold rounded transition-all cursor-pointer whitespace-nowrap ${
+                                    item.colorChoice === 'other'
+                                      ? 'bg-amber-500 text-white shadow-xs font-bold'
+                                      : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  آخر
+                                </button>
+                              </div>
+
+                              {isOtherColor ? (
+                                <div className="space-y-1">
+                                  <div className="relative">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="1"
+                                      required
+                                      aria-label={`رقم لون الفريم للبند ${index + 1}`}
+                                      value={
+                                        item.customColorNumber !== undefined && item.customColorNumber !== ''
+                                          ? item.customColorNumber
+                                          : typeof item.frameColor === 'number'
+                                          ? item.frameColor
+                                          : ''
+                                      }
+                                      onChange={(e) => handleCustomColorNumberChange(item.id, e.target.value)}
+                                      placeholder="أدخل كود لون الفريم (رقم)"
+                                      className="w-full pl-12 pr-2.5 py-1.5 text-xs font-mono-num bg-white border-2 border-amber-400 rounded-md focus:border-slate-900 focus:outline-none"
+                                    />
+                                    <span className="absolute left-1.5 top-1.5 text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">
+                                      +5 د
+                                    </span>
+                                  </div>
+                                  <div className="text-[10px] text-amber-700 font-semibold flex items-center justify-between">
+                                    <span>فريم مخصص</span>
+                                    <span>+5 دينار للإجمالي</span>
+                                  </div>
+                                </div>
                               ) : (
-                                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block">
-                                  +5 دينار
-                                </span>
+                                <div className="text-center">
+                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
+                                    فريم مجاني (0 دينار)
+                                  </span>
+                                </div>
                               )}
                             </div>
                           </div>

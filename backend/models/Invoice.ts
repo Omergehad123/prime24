@@ -39,11 +39,14 @@ export interface IInvoiceItem {
   length: number; // الطول (سم)
   width: number; // العرض (سم)
   totalDimensions: number; // يحسب تلقائياً = (الطول × العرض) ÷ 10000
-  colorChoice?: ColorChoice; // 'white' | 'black' | 'other'
+  colorChoice?: ColorChoice; // 'white' | 'black' | 'other' (لون الفريم)
+  frameColorChoice?: ColorChoice;
   customColorNumber?: string | number;
   colorCode: string | number; // أبيض | أسود | كود اللون
+  frameColor?: string | number;
+  blackOutColor?: string; // لون قماش البلاك أوت (مجاني)
   layerType: LayerType; // 'single' | 'double'
-  itemPrice: number; // يحسب تلقائياً = (الأبعاد × سعر المتر) + (دبل ? 10 : 0) + (آخر ? 5 : 0)
+  itemPrice: number; // يحسب تلقائياً = (الأبعاد × سعر المتر) + (دبل ? 10 : 0) + (فريم آخر ? 5 : 0)
   notes: string; // ملاحظة البند
 }
 
@@ -102,6 +105,19 @@ const InvoiceItemSchema = new Schema<IInvoiceItem>(
       type: String,
       enum: ['white', 'black', 'other'],
       default: 'white',
+    },
+    frameColorChoice: {
+      type: String,
+      enum: ['white', 'black', 'other'],
+      default: 'white',
+    },
+    frameColor: {
+      type: Schema.Types.Mixed,
+      default: 'أبيض',
+    },
+    blackOutColor: {
+      type: String,
+      default: 'black',
     },
     customColorNumber: {
       type: Schema.Types.Mixed,
@@ -223,40 +239,38 @@ InvoiceSchema.pre('validate', function (this: any) {
       const layerType = item.layerType || 'single';
       const layerFee = layerType === 'double' ? 10 : 0;
 
-      // Color choice resolution: white & black are free, other adds 5 denar
-      let colorChoice = item.colorChoice;
-      const rawColorStr = String(item.colorCode ?? '').trim().toLowerCase();
-      if (!colorChoice) {
+      const pType = (item.type || item.productType || this.invoiceType || 'black_screen') as ProductType;
+      const isBlackOut = pType === 'black_out';
+
+      // Frame color choice: white & black are free, other adds 5 denar
+      let frameChoice = item.frameColorChoice || item.colorChoice;
+      const rawCandidate = String(item.frameColor ?? item.colorCode ?? '').trim().toLowerCase();
+      if (!frameChoice) {
         if (
-          rawColorStr === 'أبيض' ||
-          rawColorStr === 'ابيض' ||
-          rawColorStr === 'white'
+          rawCandidate === 'أبيض' ||
+          rawCandidate === 'ابيض' ||
+          rawCandidate === 'white'
         ) {
-          colorChoice = 'white';
+          frameChoice = 'white';
         } else if (
-          rawColorStr === 'أسود' ||
-          rawColorStr === 'اسود' ||
-          rawColorStr === 'black'
+          rawCandidate === 'أسود' ||
+          rawCandidate === 'اسود' ||
+          rawCandidate === 'black'
         ) {
-          colorChoice = 'black';
+          frameChoice = 'black';
+        } else if (['gray', 'beige', 'brown', 'رصاصي', 'بيج', 'بني'].includes(rawCandidate)) {
+          frameChoice = 'white';
+        } else if (rawCandidate) {
+          frameChoice = 'other';
         } else {
-          colorChoice = 'other';
+          frameChoice = 'white';
         }
       }
 
-      const isFree =
-        colorChoice === 'white' ||
-        colorChoice === 'black' ||
-        rawColorStr === 'أبيض' ||
-        rawColorStr === 'ابيض' ||
-        rawColorStr === 'white' ||
-        rawColorStr === 'أسود' ||
-        rawColorStr === 'اسود' ||
-        rawColorStr === 'black';
+      // In blackout, fabric colors are always free; only custom frame color adds 5
+      const colorFee = frameChoice === 'other' ? 5 : 0;
 
-      const colorFee = isFree ? 0 : 5;
-
-      // حساب سعر البند تلقائياً = (الأبعاد × سعر المتر) + رسوم الدبل + رسوم اللون الخاص
+      // حساب سعر البند تلقائياً = (الأبعاد × سعر المتر) + رسوم الدبل + رسوم لون الفريم
       const itemPrice = Number(
         (totalDimensions * currentAreaPrice + layerFee + colorFee).toFixed(2)
       );
@@ -264,21 +278,25 @@ InvoiceSchema.pre('validate', function (this: any) {
       computedTotalMeters += totalDimensions;
       computedGrandTotal += itemPrice;
 
-      const pType = (item.type || item.productType || this.invoiceType || 'black_screen') as ProductType;
-
-      let finalColorCode = item.colorCode;
-      if (colorChoice === 'white') {
-        finalColorCode = 'أبيض';
-      } else if (colorChoice === 'black') {
-        finalColorCode = 'أسود';
-      } else if (colorChoice === 'other') {
-        finalColorCode =
+      let finalFrameColor: string | number = 'أبيض';
+      if (frameChoice === 'white') {
+        finalFrameColor = 'أبيض';
+      } else if (frameChoice === 'black') {
+        finalFrameColor = 'أسود';
+      } else if (frameChoice === 'other') {
+        finalFrameColor =
           item.customColorNumber !== undefined && item.customColorNumber !== ''
             ? item.customColorNumber
+            : item.frameColor !== undefined && item.frameColor !== ''
+            ? item.frameColor
             : item.colorCode !== undefined
             ? item.colorCode
             : '';
       }
+
+      const finalBlackOutColor = isBlackOut
+        ? item.blackOutColor || (['gray', 'black', 'beige', 'brown', 'رصاصي', 'أسود', 'بيج', 'بني'].includes(String(item.colorCode)) ? String(item.colorCode) : 'black')
+        : undefined;
 
       return {
         ...item,
@@ -289,9 +307,12 @@ InvoiceSchema.pre('validate', function (this: any) {
         width,
         totalDimensions,
         layerType,
-        colorChoice,
-        customColorNumber: item.customColorNumber ?? (colorChoice === 'other' ? finalColorCode : ''),
-        colorCode: finalColorCode,
+        colorChoice: frameChoice,
+        frameColorChoice: frameChoice,
+        frameColor: finalFrameColor,
+        customColorNumber: frameChoice === 'other' ? finalFrameColor : '',
+        blackOutColor: finalBlackOutColor,
+        colorCode: finalFrameColor,
         itemPrice,
         notes: item.notes || '',
       };

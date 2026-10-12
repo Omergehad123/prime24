@@ -17,10 +17,10 @@ export const COLOR_CHOICE_OPTIONS = [
 ] as const;
 
 export const BLACK_OUT_COLOR_OPTIONS = [
-  { value: 'gray', label: 'رصاصي (Gray)' },
-  { value: 'black', label: 'أسود (Black)' },
-  { value: 'beige', label: 'بيج (Beige)' },
-  { value: 'brown', label: 'بني (Brown)' },
+  { value: 'black', label: 'أسود (Black) - مجاني', fee: 0 },
+  { value: 'gray', label: 'رصاصي (Gray) - مجاني', fee: 0 },
+  { value: 'beige', label: 'بيج (Beige) - مجاني', fee: 0 },
+  { value: 'brown', label: 'بني (Brown) - مجاني', fee: 0 },
 ] as const;
 
 export const BLACK_OUT_COLORS = ['gray', 'black', 'beige', 'brown', 'رصاصي', 'أسود', 'بيج', 'بني'] as const;
@@ -36,11 +36,14 @@ export interface InvoiceItem {
   length: number; // الطول (سم)
   width: number; // العرض (سم)
   totalDimensions: number; // الطول × العرض (م²)
-  colorChoice?: ColorChoice; // 'white' | 'black' | 'other'
-  customColorNumber?: string | number; // رقم اللون عند اختيار "آخر"
-  colorCode: string | number; // شبك: أبيض | أسود | رقم يدخله المستخدم | بلاك أوت
+  colorChoice?: ColorChoice; // 'white' | 'black' | 'other' (لون الفريم)
+  frameColorChoice?: ColorChoice; // اختيار لون الفريم
+  customColorNumber?: string | number; // رقم اللون عند اختيار "آخر" للفريم
+  colorCode: string | number; // شبك: أبيض | أسود | رقم يدخله المستخدم
+  frameColor?: string | number; // لون الفريم المختار
+  blackOutColor?: string; // لون قماش البلاك أوت (رصاصي، أسود، بيج، بني - مجاني)
   layerType: LayerType; // 'single' | 'double'
-  itemPrice: number; // يحسب تلقائياً = (totalDimensions * meterPrice) + (دبل ? 10 : 0) + (لون آخر ? 5 : 0)
+  itemPrice: number; // يحسب تلقائياً = (totalDimensions * meterPrice) + (دبل ? 10 : 0) + (فريم آخر ? 5 : 0)
   notes: string; // ملاحظة للبند
 }
 

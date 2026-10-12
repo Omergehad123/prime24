@@ -8,7 +8,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Edit3, FileDown, Trash2, RotateCcw, Plus } from 'lucide-react';
 import { Invoice } from '../types/invoice';
 import { invoiceApi } from '../services/invoiceApi';
-import { formatDimension, formatCurrency } from '../utils/calculations';
+import { formatDimension, formatCurrency, getBlackOutColorLabel } from '../utils/calculations';
 
 interface ArchiveDashboardPageProps {
   onEditInvoice: (invoice: Invoice) => void;
@@ -304,22 +304,38 @@ export const ArchiveDashboardPage: React.FC<ArchiveDashboardPageProps> = ({
                         <div className="text-[11px] text-slate-500 mt-0.5">
                           {inv.items
                             .slice(0, 3)
-                            .map(
-                              (it) => {
-                                const codeStr = String(it.colorCode ?? '').trim();
-                                const colorLabel =
-                                  it.colorChoice === 'white' || codeStr === 'أبيض' || codeStr === 'ابيض' || codeStr.toLowerCase() === 'white'
-                                    ? 'أبيض'
-                                    : it.colorChoice === 'black' || codeStr === 'أسود' || codeStr === 'اسود' || codeStr.toLowerCase() === 'black'
-                                    ? 'أسود'
-                                    : codeStr
-                                    ? `رقم ${codeStr}`
-                                    : '—';
-                                return `${it.productType === 'black_out' ? 'بلاك أوت' : 'شبك'} (${colorLabel} - ${
-                                  it.layerType === 'double' ? 'دبل' : 'سنجل'
-                                })`;
+                            .map((it) => {
+                              const isBlackOut = (it.type || it.productType) === 'black_out';
+                              const frameChoice = it.frameColorChoice || it.colorChoice;
+                              const frameStr = String(it.frameColor ?? it.colorCode ?? '').trim();
+                              let frameLabel = 'أبيض';
+                              if (
+                                frameChoice === 'white' ||
+                                frameStr === 'أبيض' ||
+                                frameStr === 'ابيض' ||
+                                frameStr.toLowerCase() === 'white'
+                              ) {
+                                frameLabel = 'أبيض';
+                              } else if (
+                                frameChoice === 'black' ||
+                                frameStr === 'أسود' ||
+                                frameStr === 'اسود' ||
+                                frameStr.toLowerCase() === 'black'
+                              ) {
+                                frameLabel = 'أسود';
+                              } else if (it.customColorNumber || frameStr) {
+                                frameLabel = `رقم ${it.customColorNumber || frameStr}`;
                               }
-                            )
+
+                              const layerLabel = it.layerType === 'double' ? 'دبل' : 'سنجل';
+
+                              if (isBlackOut) {
+                                const fabricLabel = getBlackOutColorLabel(it.blackOutColor || 'black');
+                                return `بلاك أوت ${fabricLabel} (فريم: ${frameLabel} - ${layerLabel})`;
+                              }
+
+                              return `شبك (${frameLabel} - ${layerLabel})`;
+                            })
                             .join(' ، ')}
                           {inv.items.length > 3 ? ` +${inv.items.length - 3}` : ''}
                         </div>

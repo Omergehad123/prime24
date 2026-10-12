@@ -12,7 +12,7 @@ import { Printer, FileDown, X, CheckCircle2, AlertCircle } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { Invoice, FIXED_METER_PRICE, BRAND_LOGO_URL } from '../types/invoice';
-import { formatDimension, formatCurrency, getProductLabel } from '../utils/calculations';
+import { formatDimension, formatCurrency, getProductLabel, getBlackOutColorLabel } from '../utils/calculations';
 import { invoiceApi } from '../services/invoiceApi';
 
 interface PrintInvoiceModalProps {
@@ -629,7 +629,7 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
                       borderBottom: '1px solid #94a3b8',
                     }}
                   >
-                    رقم اللون / اللون
+                    اللون ولون الفريم
                   </th>
                   <th
                     style={{
@@ -728,24 +728,47 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
                       }}
                     >
                       {(() => {
-                        const codeStr = String(item.colorCode ?? '').trim();
+                        const frameChoice = item.frameColorChoice || item.colorChoice;
+                        const frameStr = String(item.frameColor ?? item.colorCode ?? '').trim();
+                        let frameDisplay = 'أبيض';
                         if (
-                          item.colorChoice === 'white' ||
-                          codeStr === 'أبيض' ||
-                          codeStr === 'ابيض' ||
-                          codeStr.toLowerCase() === 'white'
+                          frameChoice === 'white' ||
+                          frameStr === 'أبيض' ||
+                          frameStr === 'ابيض' ||
+                          frameStr.toLowerCase() === 'white'
                         ) {
-                          return 'أبيض';
-                        }
-                        if (
-                          item.colorChoice === 'black' ||
-                          codeStr === 'أسود' ||
-                          codeStr === 'اسود' ||
-                          codeStr.toLowerCase() === 'black'
+                          frameDisplay = 'أبيض';
+                        } else if (
+                          frameChoice === 'black' ||
+                          frameStr === 'أسود' ||
+                          frameStr === 'اسود' ||
+                          frameStr.toLowerCase() === 'black'
                         ) {
-                          return 'أسود';
+                          frameDisplay = 'أسود';
+                        } else if (item.customColorNumber || frameStr) {
+                          frameDisplay = `رقم ${item.customColorNumber || frameStr}`;
                         }
-                        return codeStr ? `رقم ${codeStr}` : '—';
+
+                        if ((item.type || item.productType) === 'black_out') {
+                          const fabricLabel = getBlackOutColorLabel(item.blackOutColor || 'black');
+                          return (
+                            <div>
+                              <div>{fabricLabel}</div>
+                              <div
+                                style={{
+                                  fontSize: '11px',
+                                  color: '#64748b',
+                                  fontWeight: 600,
+                                  marginTop: '2px',
+                                }}
+                              >
+                                فريم: {frameDisplay}
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return frameDisplay;
                       })()}
                     </td>
                     <td

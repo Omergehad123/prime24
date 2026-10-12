@@ -53,6 +53,19 @@ var InvoiceItemSchema = new Schema(
       enum: ["white", "black", "other"],
       default: "white"
     },
+    frameColorChoice: {
+      type: String,
+      enum: ["white", "black", "other"],
+      default: "white"
+    },
+    frameColor: {
+      type: Schema.Types.Mixed,
+      default: "\u0623\u0628\u064A\u0636"
+    },
+    blackOutColor: {
+      type: String,
+      default: "black"
+    },
     customColorNumber: {
       type: Schema.Types.Mixed,
       default: ""
@@ -161,33 +174,38 @@ InvoiceSchema.pre("validate", function() {
       const totalDimensions = Number((length * width / 1e4).toFixed(4));
       const layerType = item.layerType || "single";
       const layerFee = layerType === "double" ? 10 : 0;
-      let colorChoice = item.colorChoice;
-      const rawColorStr = String(item.colorCode ?? "").trim().toLowerCase();
-      if (!colorChoice) {
-        if (rawColorStr === "\u0623\u0628\u064A\u0636" || rawColorStr === "\u0627\u0628\u064A\u0636" || rawColorStr === "white") {
-          colorChoice = "white";
-        } else if (rawColorStr === "\u0623\u0633\u0648\u062F" || rawColorStr === "\u0627\u0633\u0648\u062F" || rawColorStr === "black") {
-          colorChoice = "black";
+      const pType = item.type || item.productType || this.invoiceType || "black_screen";
+      const isBlackOut = pType === "black_out";
+      let frameChoice = item.frameColorChoice || item.colorChoice;
+      const rawCandidate = String(item.frameColor ?? item.colorCode ?? "").trim().toLowerCase();
+      if (!frameChoice) {
+        if (rawCandidate === "\u0623\u0628\u064A\u0636" || rawCandidate === "\u0627\u0628\u064A\u0636" || rawCandidate === "white") {
+          frameChoice = "white";
+        } else if (rawCandidate === "\u0623\u0633\u0648\u062F" || rawCandidate === "\u0627\u0633\u0648\u062F" || rawCandidate === "black") {
+          frameChoice = "black";
+        } else if (["gray", "beige", "brown", "\u0631\u0635\u0627\u0635\u064A", "\u0628\u064A\u062C", "\u0628\u0646\u064A"].includes(rawCandidate)) {
+          frameChoice = "white";
+        } else if (rawCandidate) {
+          frameChoice = "other";
         } else {
-          colorChoice = "other";
+          frameChoice = "white";
         }
       }
-      const isFree = colorChoice === "white" || colorChoice === "black" || rawColorStr === "\u0623\u0628\u064A\u0636" || rawColorStr === "\u0627\u0628\u064A\u0636" || rawColorStr === "white" || rawColorStr === "\u0623\u0633\u0648\u062F" || rawColorStr === "\u0627\u0633\u0648\u062F" || rawColorStr === "black";
-      const colorFee = isFree ? 0 : 5;
+      const colorFee = frameChoice === "other" ? 5 : 0;
       const itemPrice = Number(
         (totalDimensions * currentAreaPrice + layerFee + colorFee).toFixed(2)
       );
       computedTotalMeters += totalDimensions;
       computedGrandTotal += itemPrice;
-      const pType = item.type || item.productType || this.invoiceType || "black_screen";
-      let finalColorCode = item.colorCode;
-      if (colorChoice === "white") {
-        finalColorCode = "\u0623\u0628\u064A\u0636";
-      } else if (colorChoice === "black") {
-        finalColorCode = "\u0623\u0633\u0648\u062F";
-      } else if (colorChoice === "other") {
-        finalColorCode = item.customColorNumber !== void 0 && item.customColorNumber !== "" ? item.customColorNumber : item.colorCode !== void 0 ? item.colorCode : "";
+      let finalFrameColor = "\u0623\u0628\u064A\u0636";
+      if (frameChoice === "white") {
+        finalFrameColor = "\u0623\u0628\u064A\u0636";
+      } else if (frameChoice === "black") {
+        finalFrameColor = "\u0623\u0633\u0648\u062F";
+      } else if (frameChoice === "other") {
+        finalFrameColor = item.customColorNumber !== void 0 && item.customColorNumber !== "" ? item.customColorNumber : item.frameColor !== void 0 && item.frameColor !== "" ? item.frameColor : item.colorCode !== void 0 ? item.colorCode : "";
       }
+      const finalBlackOutColor = isBlackOut ? item.blackOutColor || (["gray", "black", "beige", "brown", "\u0631\u0635\u0627\u0635\u064A", "\u0623\u0633\u0648\u062F", "\u0628\u064A\u062C", "\u0628\u0646\u064A"].includes(String(item.colorCode)) ? String(item.colorCode) : "black") : void 0;
       return {
         ...item,
         id: item.id || new mongoose.Types.ObjectId().toString(),
@@ -197,9 +215,12 @@ InvoiceSchema.pre("validate", function() {
         width,
         totalDimensions,
         layerType,
-        colorChoice,
-        customColorNumber: item.customColorNumber ?? (colorChoice === "other" ? finalColorCode : ""),
-        colorCode: finalColorCode,
+        colorChoice: frameChoice,
+        frameColorChoice: frameChoice,
+        frameColor: finalFrameColor,
+        customColorNumber: frameChoice === "other" ? finalFrameColor : "",
+        blackOutColor: finalBlackOutColor,
+        colorCode: finalFrameColor,
         itemPrice,
         notes: item.notes || ""
       };
