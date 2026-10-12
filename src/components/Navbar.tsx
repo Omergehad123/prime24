@@ -98,7 +98,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Brand Logo & Wordmark (Prime 24) */}
             <button
               type="button"
-              onClick={() => handleTabClick('editor')}
+              onClick={() => handleTabClick('archive')}
               className="flex items-center gap-2.5 text-lg sm:text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-slate-900"
             >
               {renderLogo('h-9 w-9 sm:h-10 sm:w-10')}

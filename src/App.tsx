@@ -13,7 +13,7 @@ import { PrintInvoiceModal } from './components/PrintInvoiceModal';
 import { Invoice, BRAND_LOGO_URL } from './types/invoice';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('editor');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('archive');
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [printingInvoice, setPrintingInvoice] = useState<Invoice | null>(null);
 
@@ -27,8 +27,9 @@ export default function App() {
     setActiveTab('editor');
   };
 
-  const handleSavedSuccess = (saved: Invoice) => {
-    setEditingInvoice(saved);
+  const handleSavedSuccess = (_saved: Invoice) => {
+    setEditingInvoice(null);
+    setActiveTab('archive');
   };
 
   return (
@@ -42,7 +43,7 @@ export default function App() {
           isEditingExisting={!!editingInvoice}
         />
 
-        <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-8">
+        <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-8">
           {activeTab === 'editor' && (
             <InvoiceEditorPage
               editingInvoice={editingInvoice}
