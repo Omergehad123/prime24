@@ -361,9 +361,20 @@ export const ArchiveDashboardPage: React.FC<ArchiveDashboardPageProps> = ({
                         <div className="font-mono-num font-bold text-slate-900">
                           {formatCurrency(inv.grandTotal)} دينار
                         </div>
-                        <div className="text-[11px] text-slate-500 font-mono-num mt-0.5">
-                          سعر المتر: {inv.meterPrice ?? 10} د
-                        </div>
+                        {inv.discount && inv.discount > 0 ? (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 font-mono-num">
+                              خصم: {formatCurrency(inv.discount)} د
+                            </span>
+                            <span className="text-[11px] text-slate-400 font-mono-num">
+                              سعر المتر: {inv.meterPrice ?? 10} د
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-slate-500 font-mono-num mt-0.5">
+                            سعر المتر: {inv.meterPrice ?? 10} د
+                          </div>
+                        )}
                         {(inv.invoiceNotes || inv.notes) && (
                           <div className="text-[10px] text-slate-400 truncate max-w-[140px] mt-0.5" title={inv.invoiceNotes || inv.notes}>
                             ملاحظة: {inv.invoiceNotes || inv.notes}

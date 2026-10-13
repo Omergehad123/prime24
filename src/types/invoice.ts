@@ -56,9 +56,12 @@ export interface Invoice {
   invoiceType: ProductType;
   items: InvoiceItem[];
   totalMeters: number;
-  grandTotal: number;
+  subTotal?: number; // إجمالي البنود قبل الخصم
+  discount?: number; // قيمة الخصم بالدينار
+  grandTotal: number; // المبلغ الصافي المطلوب بعد الخصم
   invoiceNotes?: string; // ملاحظة للفاتورة
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
 }
+

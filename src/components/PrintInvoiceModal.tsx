@@ -837,7 +837,7 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
 
             <div
               style={{
-                width: '280px',
+                width: '300px',
                 backgroundColor: '#f8fafc',
                 padding: '16px',
                 borderRadius: '8px',
@@ -851,7 +851,7 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
                   justifyContent: 'space-between',
                   fontSize: '13px',
                   color: '#475569',
-                  marginBottom: '10px',
+                  marginBottom: '8px',
                 }}
               >
                 <span style={{ color: '#475569' }}>إجمالي المساحة (م²):</span>
@@ -865,6 +865,60 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
                   {formatDimension(invoice.totalMeters)} متر
                 </span>
               </div>
+
+              {Boolean(invoice.discount && invoice.discount > 0) && (
+                <>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: '13px',
+                      color: '#475569',
+                      marginBottom: '8px',
+                    }}
+                  >
+                    <span style={{ color: '#475569' }}>المجموع قبل الخصم:</span>
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        color: '#0f172a',
+                        fontFamily: "'JetBrains Mono', monospace",
+                      }}
+                    >
+                      {formatCurrency(
+                        invoice.subTotal !== undefined
+                          ? invoice.subTotal
+                          : invoice.grandTotal + (invoice.discount || 0)
+                      )}{' '}
+                      دينار
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: '13px',
+                      color: '#b91c1c',
+                      marginBottom: '8px',
+                    }}
+                  >
+                    <span style={{ color: '#b91c1c', fontWeight: 700 }}>قيمة الخصم:</span>
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        color: '#b91c1c',
+                        fontFamily: "'JetBrains Mono', monospace",
+                      }}
+                    >
+                      - {formatCurrency(invoice.discount || 0)} دينار
+                    </span>
+                  </div>
+                </>
+              )}
+
               <div
                 style={{
                   paddingTop: '10px',
@@ -872,12 +926,14 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  fontSize: '17px',
+                  fontSize: '16px',
                   fontWeight: 700,
                   color: '#0f172a',
                 }}
               >
-                <span style={{ color: '#0f172a' }}>المجموع الكلي:</span>
+                <span style={{ color: '#0f172a' }}>
+                  {invoice.discount && invoice.discount > 0 ? 'المجموع بعد الخصم:' : 'المجموع الكلي:'}
+                </span>
                 <span
                   style={{
                     color: '#0f172a',

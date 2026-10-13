@@ -23,6 +23,7 @@ import {
   AlertCircle,
   Coins,
   FileText,
+  Tag,
 } from 'lucide-react';
 import {
   Invoice,
@@ -87,6 +88,7 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
   const [sequenceNumber, setSequenceNumber] = useState<number>(1);
   const [brandName] = useState<string>('Prime 24');
   const [meterPrice, setMeterPrice] = useState<number>(DEFAULT_METER_PRICE);
+  const [discount, setDiscount] = useState<number>(0);
   const [defaultProductType, setDefaultProductType] = useState<ProductType>('black_screen');
   const [invoiceNotes, setInvoiceNotes] = useState<string>('');
   const [items, setItems] = useState<InvoiceItem[]>(() => [
@@ -105,6 +107,7 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
       setSequenceNumber(editingInvoice.sequenceNumber || 1);
       const invoiceRate = editingInvoice.meterPrice !== undefined ? editingInvoice.meterPrice : DEFAULT_METER_PRICE;
       setMeterPrice(invoiceRate);
+      setDiscount(editingInvoice.discount || 0);
       setDefaultProductType(editingInvoice.invoiceType || 'black_screen');
       setInvoiceNotes(editingInvoice.invoiceNotes || editingInvoice.notes || '');
       setItems(
@@ -178,8 +181,13 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
     };
   }, [editingInvoice]);
 
-  // Recalculate automatic dimensions and totals based on items & current meterPrice
-  const effectiveState = recalculateAllItems(items, meterPrice);
+  // Recalculate automatic dimensions, subtotal, discount, and grand total based on items & current meterPrice
+  const effectiveState = recalculateAllItems(items, meterPrice, discount);
+
+  const handleDiscountChange = (newVal: string) => {
+    const parsed = Math.max(0, Number(newVal) || 0);
+    setDiscount(parsed);
+  };
 
   const handleMeterPriceChange = (newVal: string) => {
     const parsed = Math.max(0, Number(newVal) || 0);
@@ -335,6 +343,8 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
       itemPrice: it.itemPrice,
     })),
     totalMeters: effectiveState.totalMeters,
+    subTotal: effectiveState.subTotal,
+    discount,
     grandTotal: effectiveState.grandTotal,
     invoiceNotes,
     notes: invoiceNotes,
@@ -463,23 +473,49 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60">
-            <label htmlFor="meter-price-input" className="text-xs font-bold text-slate-700 whitespace-nowrap">
-              سعر المتر (دينار):
-            </label>
-            <div className="relative w-36">
-              <input
-                id="meter-price-input"
-                type="number"
-                step="any"
-                min="0"
-                value={meterPrice}
-                onChange={(e) => handleMeterPriceChange(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 text-sm font-bold font-mono-num bg-white border-2 border-slate-300 rounded-lg text-slate-900 focus:border-slate-900 focus:outline-none"
-              />
-              <span className="absolute left-2.5 top-2.5 text-xs font-bold text-slate-400">
-                د.ك
-              </span>
+          <div className="flex flex-wrap items-center justify-between sm:justify-end gap-3 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60">
+            {/* Meter Price Input */}
+            <div className="flex items-center gap-2">
+              <label htmlFor="meter-price-input" className="text-xs font-bold text-slate-700 whitespace-nowrap">
+                سعر المتر (دينار):
+              </label>
+              <div className="relative w-28 sm:w-32">
+                <input
+                  id="meter-price-input"
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={meterPrice}
+                  onChange={(e) => handleMeterPriceChange(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 text-sm font-bold font-mono-num bg-white border-2 border-slate-300 rounded-lg text-slate-900 focus:border-slate-900 focus:outline-none"
+                />
+                <span className="absolute left-2.5 top-2.5 text-xs font-bold text-slate-400">
+                  د.ك
+                </span>
+              </div>
+            </div>
+
+            {/* Discount Input */}
+            <div className="flex items-center gap-2">
+              <label htmlFor="top-discount-input" className="text-xs font-bold text-rose-700 whitespace-nowrap flex items-center gap-1">
+                <Tag className="w-3.5 h-3.5 text-rose-600" />
+                <span>الخصم (دينار):</span>
+              </label>
+              <div className="relative w-28 sm:w-32">
+                <input
+                  id="top-discount-input"
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={discount === 0 ? '' : discount}
+                  placeholder="0"
+                  onChange={(e) => handleDiscountChange(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 text-sm font-bold font-mono-num bg-white border-2 border-rose-300 rounded-lg text-rose-900 focus:border-rose-600 focus:outline-none"
+                />
+                <span className="absolute left-2.5 top-2.5 text-xs font-bold text-rose-400">
+                  د.ك
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -1358,12 +1394,60 @@ export const InvoiceEditorPage: React.FC<InvoiceEditorPageProps> = ({
 
             {/* Grand Total & Action Buttons */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:gap-6">
-              <div className="flex items-center justify-between sm:justify-start sm:items-baseline gap-3 bg-white px-5 py-3 rounded-lg border border-slate-200 shadow-2xs">
-                <span className="text-xs font-semibold text-slate-500">إجمالي الفاتورة:</span>
-                <span className="text-2xl font-bold font-mono-num text-slate-900">
-                  {formatCurrency(effectiveState.grandTotal)}{' '}
-                  <span className="text-xs font-semibold text-slate-600">دينار</span>
-                </span>
+              {/* Discount Input & Totals Card */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                {/* Quick Discount Input */}
+                <div className="flex items-center justify-between sm:justify-start gap-2 bg-white px-3.5 py-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                  <label htmlFor="bottom-discount-input" className="text-xs font-bold text-slate-700 flex items-center gap-1.5 whitespace-nowrap">
+                    <Tag className="w-3.5 h-3.5 text-rose-600" />
+                    <span>الخصم (دينار):</span>
+                  </label>
+                  <div className="relative w-24 sm:w-28">
+                    <input
+                      id="bottom-discount-input"
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={discount === 0 ? '' : discount}
+                      placeholder="0"
+                      onChange={(e) => handleDiscountChange(e.target.value)}
+                      className="w-full pl-7 pr-2.5 py-1 text-sm font-bold font-mono-num bg-slate-50 border border-slate-300 rounded-md text-slate-900 focus:bg-white focus:border-rose-600 focus:outline-none"
+                    />
+                    <span className="absolute left-2 top-1.5 text-xs font-bold text-slate-400">
+                      د.ك
+                    </span>
+                  </div>
+                </div>
+
+                {/* Totals Summary */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 bg-white px-5 py-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                  {discount > 0 && (
+                    <div className="flex sm:flex-col items-baseline justify-between w-full sm:w-auto text-xs border-b sm:border-b-0 sm:border-l sm:pl-3 border-slate-200 pb-1 sm:pb-0 gap-0.5">
+                      <div className="text-slate-500 whitespace-nowrap">
+                        قبل الخصم:{' '}
+                        <span className="font-mono-num font-semibold text-slate-700">
+                          {formatCurrency(effectiveState.subTotal)} د
+                        </span>
+                      </div>
+                      <div className="text-rose-600 font-bold whitespace-nowrap">
+                        الخصم:{' '}
+                        <span className="font-mono-num">
+                          -{formatCurrency(discount)} د
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between sm:justify-start sm:items-baseline gap-2.5 w-full sm:w-auto">
+                    <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">
+                      {discount > 0 ? 'الصافي بعد الخصم:' : 'إجمالي الفاتورة:'}
+                    </span>
+                    <span className="text-2xl font-bold font-mono-num text-slate-900 whitespace-nowrap">
+                      {formatCurrency(effectiveState.grandTotal)}{' '}
+                      <span className="text-xs font-semibold text-slate-600">دينار</span>
+                    </span>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 sm:flex sm:items-center gap-3">

@@ -58,7 +58,9 @@ export interface IInvoice extends Document {
   invoiceType: ProductType;
   items: IInvoiceItem[];
   totalMeters: number; // مجموع الأمتار = مجموع totalDimensions
-  grandTotal: number; // المجموع الكلي = totalMeters * meterPrice
+  subTotal?: number; // المجموع الفرعي قبل الخصم
+  discount?: number; // قيمة الخصم بالدينار
+  grandTotal: number; // المجموع الكلي بعد الخصم
   invoiceNotes?: string; // ملاحظة للفاتورة
   notes?: string;
   createdAt: Date;
@@ -194,6 +196,16 @@ const InvoiceSchema = new Schema<IInvoice>(
       min: 0,
       default: 0,
     },
+    subTotal: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    discount: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
     grandTotal: {
       type: Number,
       required: true,
@@ -319,8 +331,11 @@ InvoiceSchema.pre('validate', function (this: any) {
     });
   }
 
+  const safeDiscount = Math.max(0, Number(this.discount) || 0);
+  this.discount = safeDiscount;
   this.totalMeters = Number(computedTotalMeters.toFixed(4));
-  this.grandTotal = Number(computedGrandTotal.toFixed(2));
+  this.subTotal = Number(computedGrandTotal.toFixed(2));
+  this.grandTotal = Math.max(0, Number((computedGrandTotal - safeDiscount).toFixed(2)));
 });
 
 export const InvoiceModel =

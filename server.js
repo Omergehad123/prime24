@@ -141,6 +141,16 @@ var InvoiceSchema = new Schema(
       min: 0,
       default: 0
     },
+    subTotal: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+    discount: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
     grandTotal: {
       type: Number,
       required: true,
@@ -226,8 +236,11 @@ InvoiceSchema.pre("validate", function() {
       };
     });
   }
+  const safeDiscount = Math.max(0, Number(this.discount) || 0);
+  this.discount = safeDiscount;
   this.totalMeters = Number(computedTotalMeters.toFixed(4));
-  this.grandTotal = Number(computedGrandTotal.toFixed(2));
+  this.subTotal = Number(computedGrandTotal.toFixed(2));
+  this.grandTotal = Math.max(0, Number((computedGrandTotal - safeDiscount).toFixed(2)));
 });
 var InvoiceModel = mongoose.models.Invoice || mongoose.model("Invoice", InvoiceSchema);
 
@@ -397,6 +410,8 @@ var InvoiceRepository = class {
         invoiceType: prepared.invoiceType,
         items: prepared.items,
         totalMeters: prepared.totalMeters,
+        subTotal: prepared.subTotal,
+        discount: prepared.discount,
         grandTotal: prepared.grandTotal,
         invoiceNotes: prepared.invoiceNotes || prepared.notes || "",
         notes: prepared.notes || prepared.invoiceNotes || ""
@@ -439,6 +454,8 @@ var InvoiceRepository = class {
           invoiceType: prepared.invoiceType,
           items: prepared.items,
           totalMeters: prepared.totalMeters,
+          subTotal: prepared.subTotal,
+          discount: prepared.discount,
           grandTotal: prepared.grandTotal,
           invoiceNotes: prepared.invoiceNotes || prepared.notes || "",
           notes: prepared.notes || prepared.invoiceNotes || ""

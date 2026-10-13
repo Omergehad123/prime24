@@ -24,6 +24,8 @@ export interface InvoiceRecord {
   invoiceType: ProductType;
   items: IInvoiceItem[];
   totalMeters: number;
+  subTotal?: number;
+  discount?: number;
   grandTotal: number;
   invoiceNotes?: string;
   notes?: string;
@@ -237,6 +239,8 @@ class InvoiceRepository {
         invoiceType: prepared.invoiceType,
         items: prepared.items,
         totalMeters: prepared.totalMeters,
+        subTotal: prepared.subTotal,
+        discount: prepared.discount,
         grandTotal: prepared.grandTotal,
         invoiceNotes: prepared.invoiceNotes || prepared.notes || '',
         notes: prepared.notes || prepared.invoiceNotes || '',
@@ -284,6 +288,8 @@ class InvoiceRepository {
           invoiceType: prepared.invoiceType,
           items: prepared.items,
           totalMeters: prepared.totalMeters,
+          subTotal: prepared.subTotal,
+          discount: prepared.discount,
           grandTotal: prepared.grandTotal,
           invoiceNotes: prepared.invoiceNotes || prepared.notes || '',
           notes: prepared.notes || prepared.invoiceNotes || '',

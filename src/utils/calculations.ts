@@ -121,24 +121,28 @@ export function calculateItemPrice(
 }
 
 /**
- * Recalculates an entire array of invoice items automatically with the given meterPrice,
- * summing up dimensions, layer fees, frame color fees, and the overall grand total.
+ * Recalculates an entire array of invoice items automatically with the given meterPrice and optional discount,
+ * summing up dimensions, layer fees, frame color fees, subtotal, and the final grand total after discount.
  */
 export function recalculateAllItems(
   items: InvoiceItem[],
-  meterPrice: number = DEFAULT_METER_PRICE
+  meterPrice: number = DEFAULT_METER_PRICE,
+  discount: number = 0
 ): {
   items: InvoiceItem[];
   totalMeters: number;
+  subTotal: number;
+  discount: number;
   grandTotal: number;
   totalDoubleFees: number;
   totalColorFees: number;
 } {
   let totalMeters = 0;
-  let grandTotal = 0;
+  let itemsSum = 0;
   let totalDoubleFees = 0;
   let totalColorFees = 0;
   const safeRate = Math.max(0, Number(meterPrice !== undefined ? meterPrice : DEFAULT_METER_PRICE));
+  const safeDiscount = Math.max(0, Number(discount) || 0);
 
   const updatedItems = items.map((item) => {
     const totalDimensions = calculateItemMeters(item.length, item.width);
@@ -172,7 +176,7 @@ export function recalculateAllItems(
     const itemPrice = Number((basePrice + totalExtra).toFixed(2));
 
     totalMeters += totalDimensions;
-    grandTotal += itemPrice;
+    itemsSum += itemPrice;
     totalDoubleFees += layerFee;
     totalColorFees += colorFee;
 
@@ -215,10 +219,15 @@ export function recalculateAllItems(
     };
   });
 
+  const subTotal = Number(itemsSum.toFixed(2));
+  const grandTotal = Math.max(0, Number((subTotal - safeDiscount).toFixed(2)));
+
   return {
     items: updatedItems,
     totalMeters: Number(totalMeters.toFixed(4)),
-    grandTotal: Number(grandTotal.toFixed(2)),
+    subTotal,
+    discount: safeDiscount,
+    grandTotal,
     totalDoubleFees,
     totalColorFees,
   };
