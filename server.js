@@ -3,7 +3,6 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import path2 from "path";
-import { createServer as createViteServer } from "vite";
 
 // backend/store/repository.ts
 import mongoose2 from "mongoose";
@@ -915,6 +914,7 @@ async function startServer() {
   app.use("/api/auth", authRouter);
   app.use("/api/invoices", requireAdminAuth, invoiceRouter);
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa"

@@ -15,7 +15,6 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import { invoiceRepository } from './backend/store/repository.js';
 import { invoiceRouter } from './backend/routes/invoiceRoutes.js';
 import { authRouter } from './backend/routes/authRoutes.js';
@@ -58,6 +57,7 @@ async function startServer() {
 
   // Vite middleware for development vs static serving for production
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
