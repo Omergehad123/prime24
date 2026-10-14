@@ -1,14 +1,5 @@
-/**
- * @file src/components/PrintInvoiceModal.tsx
- * @description Dedicated A4 Invoice Sheet & Direct PDF Downloader for Prime 24.
- * Ensures the official Brand Logo is ALWAYS rendered in both:
- * 1. Direct PDF download (`Download as PDF` via `html2canvas` + `jspdf`) using a server-proxied Base64 Data URL so CORS never blocks or hides the logo.
- * 2. Isolated A4 printing (`طباعة الفاتورة فقط`).
- * Also uses 100% inline standard HEX CSS and strips Tailwind v4 `oklch()` rules in `onclone`.
- */
-
 import React, { useRef, useState, useEffect } from 'react';
-import { Printer, FileDown, X, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Printer, FileDown, X, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { Invoice, FIXED_METER_PRICE, BRAND_LOGO_URL } from '../types/invoice';
@@ -97,7 +88,33 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
     text: string;
   } | null>(null);
 
-  // Preload the brand logo as a Base64 Data URL via our backend proxy so it is embedded in PDF & Print
+  // Responsive device width tracking
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 640;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Keyboard shortcut: Escape to close
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  // Preload the brand logo as a Base64 Data URL via backend proxy so it is embedded in PDF & Print
   useEffect(() => {
     let isMounted = true;
     invoiceApi.getLogoBase64().then((dataUrl) => {
@@ -115,23 +132,23 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
 
   const formattedDate = invoice.createdAt
     ? new Date(invoice.createdAt).toLocaleString('ar-EG', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
     : new Date().toLocaleString('ar-EG', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
   /**
-   * Captures `#invoice-printable-sheet` (including the embedded Base64 Brand Logo)
-   * using `html2canvas` + `jsPDF`.
+   * Captures `#invoice-printable-sheet` using `html2canvas` + `jsPDF`.
+   * Standardizes the cloned sheet to desktop A4 proportions regardless of current device screen size.
    */
   const handleDownloadPdf = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -141,7 +158,7 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
     setStatusMessage(null);
 
     try {
-      // Ensure Base64 logo is loaded before capturing if not already converted
+      // Ensure Base64 logo is loaded before capturing
       if (!logoSrc.startsWith('data:')) {
         const fetchedDataUrl = await invoiceApi.getLogoBase64();
         if (fetchedDataUrl) {
@@ -158,8 +175,83 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
         allowTaint: false,
         backgroundColor: '#ffffff',
         logging: false,
+        windowWidth: 1240, // Emulates desktop viewport so media queries render full A4
         onclone: (clonedDoc) => {
+          // 1. Strip Tailwind classes & oklch styles
           prepareClonedDocumentWithInlineHex(clonedDoc);
+
+          // 2. Remove mobile-only elements from PDF
+          const mobileHints = clonedDoc.querySelectorAll('.mobile-only-ui');
+          mobileHints.forEach((el) => el.remove());
+
+          // 3. Format cloned sheet to standard A4 (800px width)
+          const clonedSheet = clonedDoc.getElementById('invoice-printable-sheet');
+          if (clonedSheet) {
+            clonedSheet.style.width = '800px';
+            clonedSheet.style.minWidth = '800px';
+            clonedSheet.style.maxWidth = '800px';
+            clonedSheet.style.padding = '36px';
+            clonedSheet.style.margin = '0 auto';
+            clonedSheet.style.boxSizing = 'border-box';
+            clonedSheet.style.backgroundColor = '#ffffff';
+          }
+
+          // 4. Force table container to fully display without scrollbars or truncation
+          const tableContainers = clonedDoc.querySelectorAll('.invoice-table-container');
+          tableContainers.forEach((tc) => {
+            const el = tc as HTMLElement;
+            el.style.overflow = 'visible';
+            el.style.width = '100%';
+            el.style.marginBottom = '28px';
+          });
+
+          const table = clonedDoc.querySelector('table');
+          if (table) {
+            table.style.width = '100%';
+            table.style.minWidth = '100%';
+          }
+
+          // 5. Force header to formal side-by-side flex layout
+          const headerRow = clonedDoc.getElementById('invoice-header-row');
+          if (headerRow) {
+            headerRow.style.display = 'flex';
+            headerRow.style.flexDirection = 'row';
+            headerRow.style.justifyContent = 'space-between';
+            headerRow.style.alignItems = 'center';
+            headerRow.style.flexWrap = 'nowrap';
+            headerRow.style.gap = '20px';
+            headerRow.style.paddingBottom = '20px';
+            headerRow.style.marginBottom = '28px';
+            headerRow.style.borderBottom = '2px solid #0f172a';
+          }
+
+          const headerMeta = clonedDoc.getElementById('invoice-header-meta');
+          if (headerMeta) {
+            headerMeta.style.width = 'auto';
+            headerMeta.style.textAlign = 'left';
+            headerMeta.style.backgroundColor = 'transparent';
+            headerMeta.style.border = 'none';
+            headerMeta.style.padding = '0';
+          }
+
+          // 6. Force footer to formal side-by-side layout
+          const footerRow = clonedDoc.getElementById('invoice-footer-row');
+          if (footerRow) {
+            footerRow.style.display = 'flex';
+            footerRow.style.flexDirection = 'row';
+            footerRow.style.justifyContent = 'space-between';
+            footerRow.style.alignItems = 'flex-start';
+            footerRow.style.flexWrap = 'nowrap';
+            footerRow.style.gap = '20px';
+            footerRow.style.paddingTop = '20px';
+            footerRow.style.borderTop = '2px solid #0f172a';
+          }
+
+          const totalsCard = clonedDoc.getElementById('invoice-totals-card');
+          if (totalsCard) {
+            totalsCard.style.width = '300px';
+            totalsCard.style.minWidth = '300px';
+          }
         },
       });
 
@@ -203,7 +295,7 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
 
       setStatusMessage({
         type: 'success',
-        text: `تم تحميل ملف الـ PDF (${fileName}) شاملاً اللوجو بنجاح.`,
+        text: `تم تحميل ملف الـ PDF (${fileName}) بجودة A4 عالية بنجاح.`,
       });
     } catch (err: any) {
       setStatusMessage({
@@ -216,7 +308,7 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
   };
 
   /**
-   * Prints ONLY the clean A4 invoice (including the Brand Logo) inside a dedicated print iframe.
+   * Prints ONLY the clean A4 invoice inside a dedicated print iframe.
    */
   const handlePrintInvoiceOnly = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -268,6 +360,54 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
             }
+            .mobile-only-ui, .no-print {
+              display: none !important;
+            }
+            #invoice-printable-sheet {
+              width: 100% !important;
+              max-width: 100% !important;
+              padding: 10mm !important;
+              box-sizing: border-box !important;
+            }
+            .invoice-header-row {
+              display: flex !important;
+              flex-direction: row !important;
+              justify-content: space-between !important;
+              align-items: center !important;
+              flex-wrap: nowrap !important;
+              padding-bottom: 20px !important;
+              margin-bottom: 28px !important;
+              border-bottom: 2px solid #0f172a !important;
+            }
+            .invoice-header-meta {
+              width: auto !important;
+              text-align: left !important;
+              background-color: transparent !important;
+              border: none !important;
+              padding: 0 !important;
+            }
+            .invoice-table-container {
+              overflow: visible !important;
+              width: 100% !important;
+              margin-bottom: 28px !important;
+            }
+            table {
+              width: 100% !important;
+              min-width: 100% !important;
+            }
+            .invoice-footer-row {
+              display: flex !important;
+              flex-direction: row !important;
+              justify-content: space-between !important;
+              align-items: flex-start !important;
+              flex-wrap: nowrap !important;
+              padding-top: 20px !important;
+              border-top: 2px solid #0f172a !important;
+            }
+            .invoice-totals-card {
+              width: 300px !important;
+              min-width: 300px !important;
+            }
           </style>
         </head>
         <body>
@@ -292,109 +432,227 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
   return (
     <div
       onClick={handleCloseClick}
-      className="print-modal-backdrop fixed inset-0 z-50 bg-slate-900/65 flex items-start md:items-center justify-center p-4 overflow-y-auto"
+      className="print-modal-backdrop fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto"
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
           backgroundColor: '#ffffff',
-          border: '1px solid #e2e8f0',
-          borderRadius: '12px',
-          maxWidth: '896px',
+          border: '1px solid #cbd5e1',
+          borderRadius: isMobile ? '12px' : '16px',
+          maxWidth: '920px',
           width: '100%',
+          maxHeight: '94vh',
+          display: 'flex',
+          flexDirection: 'column',
           overflow: 'hidden',
+          boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
           margin: 'auto',
         }}
       >
-        {/* Top Control Bar (Hidden in Print & Excluded from PDF Sheet) */}
+        {/* Top Control Bar (Sticky & Mobile Responsive) */}
         <div
           className="no-print"
           style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-            padding: '16px 24px',
-            backgroundColor: '#f1f5f9',
+            position: 'sticky',
+            top: 0,
+            zIndex: 30,
+            backgroundColor: '#f8fafc',
             borderBottom: '1px solid #e2e8f0',
+            padding: isMobile ? '12px 14px' : '14px 24px',
           }}
         >
-          <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>
-            معاينة الفاتورة الجاهزة للطباعة · {invoice.invoiceNumber}
-          </div>
+          {isMobile ? (
+            /* Mobile Header Layout */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
+                    معاينة الفاتورة
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: '#0f172a',
+                      backgroundColor: '#e2e8f0',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      fontFamily: "'JetBrains Mono', monospace",
+                    }}
+                  >
+                    #{invoice.invoiceNumber}
+                  </span>
+                </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
-            <button
-              type="button"
-              disabled={isGeneratingPdf}
-              onClick={handleDownloadPdf}
+                <button
+                  type="button"
+                  onClick={handleCloseClick}
+                  aria-label="إغلاق المعاينة"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '32px',
+                    height: '32px',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    color: '#64748b',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <X style={{ width: '18px', height: '18px' }} />
+                </button>
+              </div>
+
+              {/* Mobile Action Buttons */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <button
+                  type="button"
+                  disabled={isGeneratingPdf}
+                  onClick={handleDownloadPdf}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '9px 12px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#ffffff',
+                    backgroundColor: '#0f172a',
+                    border: '1px solid #0f172a',
+                    borderRadius: '8px',
+                    cursor: isGeneratingPdf ? 'wait' : 'pointer',
+                    opacity: isGeneratingPdf ? 0.7 : 1,
+                  }}
+                >
+                  <FileDown style={{ width: '15px', height: '15px' }} />
+                  <span>{isGeneratingPdf ? 'جاري التحميل...' : 'تحميل PDF'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePrintInvoiceOnly}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '9px 12px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Printer style={{ width: '15px', height: '15px' }} />
+                  <span>طباعة A4</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Tablet & Desktop Header Layout */
+            <div
               style={{
-                display: 'inline-flex',
+                display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
-                padding: '10px 16px',
-                fontSize: '12px',
-                fontWeight: 700,
-                color: '#ffffff',
-                backgroundColor: '#0f172a',
-                border: '1px solid #0f172a',
-                borderRadius: '8px',
-                cursor: isGeneratingPdf ? 'wait' : 'pointer',
-                opacity: isGeneratingPdf ? 0.6 : 1,
-                whiteSpace: 'nowrap',
+                justifyContent: 'space-between',
+                gap: '12px',
               }}
             >
-              <FileDown style={{ width: '16px', height: '16px' }} />
-              <span>
-                {isGeneratingPdf ? 'جاري تحميل ملف PDF...' : 'تحميل كملف PDF (Download as PDF)'}
-              </span>
-            </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>
+                  معاينة الفاتورة الرسمية للطباعة والـ PDF
+                </span>
+                <span
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    backgroundColor: '#e2e8f0',
+                    padding: '3px 10px',
+                    borderRadius: '6px',
+                    fontFamily: "'JetBrains Mono', monospace",
+                  }}
+                >
+                  #{invoice.invoiceNumber}
+                </span>
+              </div>
 
-            <button
-              type="button"
-              onClick={handlePrintInvoiceOnly}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 16px',
-                fontSize: '12px',
-                fontWeight: 700,
-                color: '#0f172a',
-                backgroundColor: '#ffffff',
-                border: '1px solid #cbd5e1',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <Printer style={{ width: '16px', height: '16px' }} />
-              <span>طباعة الفاتورة فقط (A4)</span>
-            </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  disabled={isGeneratingPdf}
+                  onClick={handleDownloadPdf}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '9px 16px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: '#ffffff',
+                    backgroundColor: '#0f172a',
+                    border: '1px solid #0f172a',
+                    borderRadius: '8px',
+                    cursor: isGeneratingPdf ? 'wait' : 'pointer',
+                    opacity: isGeneratingPdf ? 0.7 : 1,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                  }}
+                >
+                  <FileDown style={{ width: '16px', height: '16px' }} />
+                  <span>{isGeneratingPdf ? 'جاري إنشاء ملف PDF...' : 'تحميل كملف PDF'}</span>
+                </button>
 
-            <button
-              type="button"
-              onClick={handleCloseClick}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '10px 16px',
-                fontSize: '12px',
-                fontWeight: 700,
-                color: '#b91c1c',
-                backgroundColor: '#fef2f2',
-                border: '1px solid #fecaca',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <X style={{ width: '16px', height: '16px' }} />
-              <span>إغلاق</span>
-            </button>
-          </div>
+                <button
+                  type="button"
+                  onClick={handlePrintInvoiceOnly}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '9px 16px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Printer style={{ width: '16px', height: '16px' }} />
+                  <span>طباعة الفاتورة (A4)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCloseClick}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '9px 14px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: '#b91c1c',
+                    backgroundColor: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <X style={{ width: '16px', height: '16px' }} />
+                  <span>إغلاق</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Status Feedback Banner */}
@@ -405,7 +663,7 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '12px 24px',
+              padding: isMobile ? '10px 14px' : '12px 24px',
               fontSize: '12px',
               fontWeight: 600,
               backgroundColor: statusMessage.type === 'success' ? '#ecfdf5' : '#fef2f2',
@@ -416,9 +674,9 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {statusMessage.type === 'success' ? (
-                <CheckCircle2 style={{ width: '16px', height: '16px', color: '#047857' }} />
+                <CheckCircle2 style={{ width: '16px', height: '16px', color: '#047857', flexShrink: 0 }} />
               ) : (
-                <AlertCircle style={{ width: '16px', height: '16px', color: '#b91c1c' }} />
+                <AlertCircle style={{ width: '16px', height: '16px', color: '#b91c1c', flexShrink: 0 }} />
               )}
               <span>{statusMessage.text}</span>
             </div>
@@ -432,6 +690,7 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
                 cursor: 'pointer',
                 color: 'inherit',
                 fontSize: '12px',
+                marginRight: '8px',
               }}
             >
               إخفاء
@@ -439,509 +698,620 @@ export const PrintInvoiceModal: React.FC<PrintInvoiceModalProps> = ({ invoice, o
           </div>
         )}
 
-        {/*
-          Printable A4 Invoice Sheet (`sheetRef`).
-          Includes the official Brand Logo (`logoSrc` Base64 Data URL) so it is captured in both PDF and Print!
-        */}
+        {/* Scrollable Modal Body Container */}
         <div
-          id="invoice-printable-sheet"
-          ref={sheetRef}
-          dir="rtl"
           style={{
-            backgroundColor: '#ffffff',
-            color: '#0f172a',
-            padding: '36px',
-            fontFamily: "'Cairo', 'IBM Plex Sans Arabic', Arial, sans-serif",
-            boxSizing: 'border-box',
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            backgroundColor: '#e2e8f0',
+            padding: isMobile ? '8px' : '24px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
           }}
         >
-          {/* Invoice Header with Official Brand Logo */}
+          {/*
+            Printable A4 Invoice Sheet (`sheetRef`).
+            Includes official Brand Logo (`logoSrc` Base64 Data URL) captured in both PDF and Print!
+          */}
           <div
+            id="invoice-printable-sheet"
+            ref={sheetRef}
+            dir="rtl"
             style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '20px',
-              paddingBottom: '20px',
-              borderBottom: '2px solid #0f172a',
-              marginBottom: '28px',
+              backgroundColor: '#ffffff',
+              color: '#0f172a',
+              width: '100%',
+              maxWidth: '820px',
+              padding: isMobile ? '16px 14px' : '36px',
+              fontFamily: "'Cairo', 'IBM Plex Sans Arabic', Arial, sans-serif",
+              boxSizing: 'border-box',
+              borderRadius: isMobile ? '8px' : '12px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              {!logoError ? (
-                <img
-                  src={logoSrc}
-                  alt="Prime 24 Logo"
-                  referrerPolicy="no-referrer"
-                  onError={() => setLogoError(true)}
-                  style={{
-                    width: '72px',
-                    height: '72px',
-                    borderRadius: '12px',
-                    objectFit: 'cover',
-                    border: '1px solid #cbd5e1',
-                  }}
-                />
-              ) : (
+            {/* Invoice Header with Official Brand Logo */}
+            <div
+              id="invoice-header-row"
+              className="invoice-header-row"
+              style={{
+                display: 'flex',
+                flexDirection: isMobile ? 'column' : 'row',
+                alignItems: isMobile ? 'stretch' : 'center',
+                justifyContent: 'space-between',
+                gap: isMobile ? '14px' : '20px',
+                paddingBottom: isMobile ? '16px' : '20px',
+                borderBottom: '2px solid #0f172a',
+                marginBottom: isMobile ? '18px' : '28px',
+              }}
+            >
+              {/* Brand & Logo */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '12px' : '16px' }}>
+                {!logoError ? (
+                  <img
+                    src={logoSrc}
+                    alt="Prime 24 Logo"
+                    referrerPolicy="no-referrer"
+                    onError={() => setLogoError(true)}
+                    style={{
+                      width: isMobile ? '56px' : '72px',
+                      height: isMobile ? '56px' : '72px',
+                      borderRadius: '10px',
+                      objectFit: 'cover',
+                      border: '1px solid #cbd5e1',
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: isMobile ? '56px' : '64px',
+                      height: isMobile ? '56px' : '64px',
+                      borderRadius: '10px',
+                      backgroundColor: '#0f172a',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 700,
+                      fontSize: isMobile ? '16px' : '18px',
+                      fontFamily: "'JetBrains Mono', monospace",
+                      flexShrink: 0,
+                    }}
+                  >
+                    P24
+                  </div>
+                )}
+                <div>
+                  <h1
+                    style={{
+                      fontSize: isMobile ? '20px' : '26px',
+                      fontWeight: 700,
+                      color: '#0f172a',
+                      margin: 0,
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {invoice.brandName || 'Prime 24'}
+                  </h1>
+                  <p
+                    style={{
+                      fontSize: isMobile ? '12px' : '13px',
+                      color: '#475569',
+                      margin: '4px 0 0 0',
+                    }}
+                  >
+                    فاتورة رسمية · شبك & بلاك أوت
+                  </p>
+                </div>
+              </div>
+
+              {/* Invoice Meta (Number, Date, Meter Price) */}
+              <div
+                id="invoice-header-meta"
+                className="invoice-header-meta"
+                style={{
+                  width: isMobile ? '100%' : 'auto',
+                  textAlign: isMobile ? 'right' : 'left',
+                  fontSize: '12px',
+                  color: '#334155',
+                  lineHeight: 1.6,
+                  backgroundColor: isMobile ? '#f8fafc' : 'transparent',
+                  padding: isMobile ? '10px 12px' : '0',
+                  borderRadius: isMobile ? '8px' : '0',
+                  border: isMobile ? '1px solid #e2e8f0' : 'none',
+                }}
+              >
                 <div
                   style={{
-                    width: '64px',
-                    height: '64px',
-                    borderRadius: '12px',
-                    backgroundColor: '#0f172a',
-                    color: '#ffffff',
+                    display: 'flex',
+                    justifyContent: isMobile ? 'space-between' : 'flex-end',
+                    alignItems: 'baseline',
+                    gap: '8px',
+                    marginBottom: '2px',
+                  }}
+                >
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                    رقم الفاتورة:
+                  </span>
+                  <span
+                    style={{
+                      fontSize: isMobile ? '16px' : '18px',
+                      fontWeight: 700,
+                      color: '#0f172a',
+                      fontFamily: "'JetBrains Mono', monospace",
+                    }}
+                  >
+                    {invoice.invoiceNumber}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: isMobile ? 'space-between' : 'flex-end',
+                    alignItems: 'center',
+                    gap: '8px',
+                    marginBottom: '2px',
+                  }}
+                >
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>التاريخ:</span>
+                  <span style={{ color: '#334155' }}>{formattedDate}</span>
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: isMobile ? 'space-between' : 'flex-end',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>سعر المتر:</span>
+                  <strong style={{ color: '#0f172a', fontFamily: "'JetBrains Mono', monospace" }}>
+                    {invoice.meterPrice || FIXED_METER_PRICE} دينار
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile Swipe Hint Badge (Only on screen preview, removed in PDF/Print) */}
+            {isMobile && (
+              <div
+                className="mobile-only-ui"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '7px 12px',
+                  backgroundColor: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  marginBottom: '10px',
+                  fontSize: '11px',
+                  color: '#475569',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Sparkles style={{ width: '13px', height: '13px', color: '#0f172a' }} />
+                  <span>اسحب الجدول أفقياً للاطلاع على جميع الأعمدة</span>
+                </div>
+                <span style={{ fontWeight: 700, color: '#0f172a', letterSpacing: '2px' }}>← →</span>
+              </div>
+            )}
+
+            {/* Items Table Container with Smooth Scroll */}
+            <div
+              id="invoice-table-container"
+              className="invoice-table-container"
+              style={{
+                overflowX: 'auto',
+                marginBottom: isMobile ? '18px' : '28px',
+                WebkitOverflowScrolling: 'touch',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+              }}
+            >
+              <table
+                className="invoice-table"
+                style={{
+                  width: '100%',
+                  minWidth: isMobile ? '640px' : '100%',
+                  borderCollapse: 'collapse',
+                  textAlign: 'right',
+                  backgroundColor: '#ffffff',
+                }}
+              >
+                <thead>
+                  <tr
+                    style={{
+                      backgroundColor: '#f1f5f9',
+                      borderBottom: '2px solid #94a3b8',
+                      color: '#0f172a',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                    }}
+                  >
+                    <th
+                      style={{
+                        padding: '10px 8px',
+                        width: '36px',
+                        color: '#0f172a',
+                        backgroundColor: '#f1f5f9',
+                        textAlign: 'center',
+                      }}
+                    >
+                      #
+                    </th>
+                    <th
+                      style={{
+                        padding: '10px 10px',
+                        color: '#0f172a',
+                        backgroundColor: '#f1f5f9',
+                        minWidth: '95px',
+                      }}
+                    >
+                      نوع المنتج
+                    </th>
+                    <th
+                      style={{
+                        padding: '10px 8px',
+                        color: '#0f172a',
+                        backgroundColor: '#f1f5f9',
+                        minWidth: '60px',
+                      }}
+                    >
+                      الطول
+                    </th>
+                    <th
+                      style={{
+                        padding: '10px 8px',
+                        color: '#0f172a',
+                        backgroundColor: '#f1f5f9',
+                        minWidth: '60px',
+                      }}
+                    >
+                      العرض
+                    </th>
+                    <th
+                      style={{
+                        padding: '10px 10px',
+                        color: '#0f172a',
+                        backgroundColor: '#f1f5f9',
+                        minWidth: '105px',
+                      }}
+                    >
+                      اللون ولون الفريم
+                    </th>
+                    <th
+                      style={{
+                        padding: '10px 8px',
+                        color: '#0f172a',
+                        backgroundColor: '#f1f5f9',
+                        minWidth: '70px',
+                      }}
+                    >
+                      دبل / سنجل
+                    </th>
+                    <th
+                      style={{
+                        padding: '10px 10px',
+                        color: '#0f172a',
+                        backgroundColor: '#f1f5f9',
+                        minWidth: '85px',
+                      }}
+                    >
+                      السعر
+                    </th>
+                    <th
+                      style={{
+                        padding: '10px 10px',
+                        color: '#0f172a',
+                        backgroundColor: '#f1f5f9',
+                        minWidth: '85px',
+                      }}
+                    >
+                      ملاحظة
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoice.items.map((item, idx) => (
+                    <tr
+                      key={item.id || idx}
+                      style={{
+                        borderBottom: '1px solid #e2e8f0',
+                        fontSize: '13px',
+                        color: '#1e293b',
+                        backgroundColor: idx % 2 === 1 ? '#f8fafc' : '#ffffff',
+                      }}
+                    >
+                      <td
+                        style={{
+                          padding: '10px 8px',
+                          fontSize: '11px',
+                          color: '#64748b',
+                          borderBottom: '1px solid #e2e8f0',
+                          textAlign: 'center',
+                          fontFamily: "'JetBrains Mono', monospace",
+                        }}
+                      >
+                        {idx + 1}
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 10px',
+                          fontWeight: 700,
+                          color: '#0f172a',
+                          borderBottom: '1px solid #e2e8f0',
+                        }}
+                      >
+                        {getProductLabel(item.productType || invoice.invoiceType)}
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 8px',
+                          color: '#1e293b',
+                          borderBottom: '1px solid #e2e8f0',
+                          fontFamily: "'JetBrains Mono', monospace",
+                        }}
+                      >
+                        {formatDimension(item.length)}
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 8px',
+                          color: '#1e293b',
+                          borderBottom: '1px solid #e2e8f0',
+                          fontFamily: "'JetBrains Mono', monospace",
+                        }}
+                      >
+                        {formatDimension(item.width)}
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 10px',
+                          fontWeight: 700,
+                          fontSize: '12px',
+                          color: '#0f172a',
+                          borderBottom: '1px solid #e2e8f0',
+                        }}
+                      >
+                        {(() => {
+                          const frameChoice = item.frameColorChoice || item.colorChoice;
+                          const frameStr = String(item.frameColor ?? item.colorCode ?? '').trim();
+                          let frameDisplay = 'أبيض';
+                          if (
+                            frameChoice === 'white' ||
+                            frameStr === 'أبيض' ||
+                            frameStr === 'ابيض' ||
+                            frameStr.toLowerCase() === 'white'
+                          ) {
+                            frameDisplay = 'أبيض';
+                          } else if (
+                            frameChoice === 'black' ||
+                            frameStr === 'أسود' ||
+                            frameStr === 'اسود' ||
+                            frameStr.toLowerCase() === 'black'
+                          ) {
+                            frameDisplay = 'أسود';
+                          } else if (item.customColorNumber || frameStr) {
+                            frameDisplay = `رقم ${item.customColorNumber || frameStr}`;
+                          }
+
+                          if ((item.type || item.productType) === 'black_out') {
+                            const fabricLabel = getBlackOutColorLabel(item.blackOutColor || 'black');
+                            return (
+                              <div>
+                                <div>{fabricLabel}</div>
+                                <div
+                                  style={{
+                                    fontSize: '10px',
+                                    color: '#64748b',
+                                    fontWeight: 600,
+                                    marginTop: '1px',
+                                  }}
+                                >
+                                  فريم: {frameDisplay}
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return frameDisplay;
+                        })()}
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 8px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          color: '#1e293b',
+                          borderBottom: '1px solid #e2e8f0',
+                        }}
+                      >
+                        {item.layerType === 'double' ? 'دبل' : 'سنجل'}
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 10px',
+                          fontWeight: 700,
+                          color: '#0f172a',
+                          borderBottom: '1px solid #e2e8f0',
+                          fontFamily: "'JetBrains Mono', monospace",
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {formatCurrency(item.itemPrice)} د
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 10px',
+                          fontSize: '12px',
+                          color: '#475569',
+                          borderBottom: '1px solid #e2e8f0',
+                        }}
+                      >
+                        {item.notes || '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Summary Footer */}
+            <div
+              id="invoice-footer-row"
+              className="invoice-footer-row"
+              style={{
+                paddingTop: isMobile ? '16px' : '20px',
+                borderTop: '2px solid #0f172a',
+                display: 'flex',
+                flexDirection: isMobile ? 'column' : 'row',
+                alignItems: isMobile ? 'stretch' : 'flex-start',
+                justifyContent: 'space-between',
+                gap: isMobile ? '14px' : '20px',
+              }}
+            >
+              {/* Left Column: Calculation notes and details */}
+              <div style={{ fontSize: '11px', color: '#475569', lineHeight: 1.7, flex: 1 }}>
+                <div style={{ margin: 0, color: '#334155', fontWeight: 600 }}>
+                  إجمالي عدد المنتجات في الفاتورة: {invoice.items.length}
+                </div>
+                <div style={{ margin: '2px 0 0 0', color: '#64748b' }}>
+                  طريقة الحساب: (الطول × العرض) ÷ 10,000 × سعر المتر ({invoice.meterPrice || FIXED_METER_PRICE} د) + الرسوم الإضافية
+                </div>
+                {(invoice.invoiceNotes || invoice.notes) && (
+                  <div
+                    style={{
+                      marginTop: '8px',
+                      padding: '8px 12px',
+                      backgroundColor: '#f8fafc',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '11px',
+                      color: '#1e293b',
+                    }}
+                  >
+                    <strong>ملاحظات الفاتورة:</strong> {invoice.invoiceNotes || invoice.notes}
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Totals Card */}
+              <div
+                id="invoice-totals-card"
+                className="invoice-totals-card"
+                style={{
+                  width: isMobile ? '100%' : '300px',
+                  backgroundColor: '#f8fafc',
+                  padding: isMobile ? '12px 14px' : '16px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div
+                  style={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 700,
-                    fontSize: '18px',
-                    fontFamily: "'JetBrains Mono', monospace",
-                  }}
-                >
-                  P24
-                </div>
-              )}
-              <div>
-                <h1
-                  style={{
-                    fontSize: '26px',
-                    fontWeight: 700,
-                    color: '#0f172a',
-                    margin: 0,
-                    lineHeight: 1.2,
-                  }}
-                >
-                  {invoice.brandName || 'Prime 24'}
-                </h1>
-                <p
-                  style={{
-                    fontSize: '13px',
+                    justifyContent: 'space-between',
+                    fontSize: '12px',
                     color: '#475569',
-                    margin: '6px 0 0 0',
+                    marginBottom: '8px',
                   }}
                 >
-                  فاتورة رسمية · شبك & بلاك أوت
-                </p>
-              </div>
-            </div>
-
-            <div
-              style={{
-                textAlign: 'left',
-                fontSize: '13px',
-                color: '#334155',
-                lineHeight: 1.7,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  color: '#0f172a',
-                  fontFamily: "'JetBrains Mono', monospace",
-                }}
-              >
-                {invoice.invoiceNumber}
-              </div>
-              <div style={{ color: '#334155' }}>التاريخ: {formattedDate}</div>
-              <div style={{ color: '#334155' }}>
-                سعر المتر الثابت:{' '}
-                <strong style={{ color: '#0f172a', fontFamily: "'JetBrains Mono', monospace" }}>
-                  {invoice.meterPrice || FIXED_METER_PRICE} دينار
-                </strong>
-              </div>
-            </div>
-          </div>
-
-          {/* Items Table (الطول والعرض فقط بدون مساحة) */}
-          <div style={{ overflowX: 'auto', marginBottom: '28px' }}>
-            <table
-              style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                textAlign: 'right',
-                backgroundColor: '#ffffff',
-              }}
-            >
-              <thead>
-                <tr
-                  style={{
-                    backgroundColor: '#f1f5f9',
-                    borderTop: '1px solid #94a3b8',
-                    borderBottom: '1px solid #94a3b8',
-                    color: '#0f172a',
-                    fontSize: '13px',
-                    fontWeight: 700,
-                  }}
-                >
-                  <th
+                  <span style={{ color: '#475569' }}>إجمالي المساحة (م²):</span>
+                  <span
                     style={{
-                      padding: '12px 10px',
-                      width: '40px',
+                      fontWeight: 700,
                       color: '#0f172a',
-                      backgroundColor: '#f1f5f9',
-                      borderTop: '1px solid #94a3b8',
-                      borderBottom: '1px solid #94a3b8',
+                      fontFamily: "'JetBrains Mono', monospace",
                     }}
                   >
-                    #
-                  </th>
-                  <th
-                    style={{
-                      padding: '12px 10px',
-                      color: '#0f172a',
-                      backgroundColor: '#f1f5f9',
-                      borderTop: '1px solid #94a3b8',
-                      borderBottom: '1px solid #94a3b8',
-                    }}
-                  >
-                    نوع المنتج
-                  </th>
-                  <th
-                    style={{
-                      padding: '12px 10px',
-                      color: '#0f172a',
-                      backgroundColor: '#f1f5f9',
-                      borderTop: '1px solid #94a3b8',
-                      borderBottom: '1px solid #94a3b8',
-                    }}
-                  >
-                    الطول
-                  </th>
-                  <th
-                    style={{
-                      padding: '12px 10px',
-                      color: '#0f172a',
-                      backgroundColor: '#f1f5f9',
-                      borderTop: '1px solid #94a3b8',
-                      borderBottom: '1px solid #94a3b8',
-                    }}
-                  >
-                    العرض
-                  </th>
-                  <th
-                    style={{
-                      padding: '12px 10px',
-                      color: '#0f172a',
-                      backgroundColor: '#f1f5f9',
-                      borderTop: '1px solid #94a3b8',
-                      borderBottom: '1px solid #94a3b8',
-                    }}
-                  >
-                    اللون ولون الفريم
-                  </th>
-                  <th
-                    style={{
-                      padding: '12px 10px',
-                      color: '#0f172a',
-                      backgroundColor: '#f1f5f9',
-                      borderTop: '1px solid #94a3b8',
-                      borderBottom: '1px solid #94a3b8',
-                    }}
-                  >
-                    دبل / سنجل
-                  </th>
-                  <th
-                    style={{
-                      padding: '12px 10px',
-                      color: '#0f172a',
-                      backgroundColor: '#f1f5f9',
-                      borderTop: '1px solid #94a3b8',
-                      borderBottom: '1px solid #94a3b8',
-                    }}
-                  >
-                    السعر
-                  </th>
-                  <th
-                    style={{
-                      padding: '12px 10px',
-                      color: '#0f172a',
-                      backgroundColor: '#f1f5f9',
-                      borderTop: '1px solid #94a3b8',
-                      borderBottom: '1px solid #94a3b8',
-                    }}
-                  >
-                    ملاحظة
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoice.items.map((item, idx) => (
-                  <tr
-                    key={item.id || idx}
-                    style={{
-                      borderBottom: '1px solid #e2e8f0',
-                      fontSize: '14px',
-                      color: '#1e293b',
-                      backgroundColor: '#ffffff',
-                    }}
-                  >
-                    <td
-                      style={{
-                        padding: '12px 10px',
-                        fontSize: '12px',
-                        color: '#64748b',
-                        borderBottom: '1px solid #e2e8f0',
-                        fontFamily: "'JetBrains Mono', monospace",
-                      }}
-                    >
-                      {idx + 1}
-                    </td>
-                    <td
-                      style={{
-                        padding: '12px 10px',
-                        fontWeight: 700,
-                        color: '#0f172a',
-                        borderBottom: '1px solid #e2e8f0',
-                      }}
-                    >
-                      {getProductLabel(item.productType || invoice.invoiceType)}
-                    </td>
-                    <td
-                      style={{
-                        padding: '12px 10px',
-                        color: '#1e293b',
-                        borderBottom: '1px solid #e2e8f0',
-                        fontFamily: "'JetBrains Mono', monospace",
-                      }}
-                    >
-                      {formatDimension(item.length)}
-                    </td>
-                    <td
-                      style={{
-                        padding: '12px 10px',
-                        color: '#1e293b',
-                        borderBottom: '1px solid #e2e8f0',
-                        fontFamily: "'JetBrains Mono', monospace",
-                      }}
-                    >
-                      {formatDimension(item.width)}
-                    </td>
-                    <td
-                      style={{
-                        padding: '12px 10px',
-                        fontWeight: 700,
-                        fontSize: '13px',
-                        color: '#0f172a',
-                        borderBottom: '1px solid #e2e8f0',
-                      }}
-                    >
-                      {(() => {
-                        const frameChoice = item.frameColorChoice || item.colorChoice;
-                        const frameStr = String(item.frameColor ?? item.colorCode ?? '').trim();
-                        let frameDisplay = 'أبيض';
-                        if (
-                          frameChoice === 'white' ||
-                          frameStr === 'أبيض' ||
-                          frameStr === 'ابيض' ||
-                          frameStr.toLowerCase() === 'white'
-                        ) {
-                          frameDisplay = 'أبيض';
-                        } else if (
-                          frameChoice === 'black' ||
-                          frameStr === 'أسود' ||
-                          frameStr === 'اسود' ||
-                          frameStr.toLowerCase() === 'black'
-                        ) {
-                          frameDisplay = 'أسود';
-                        } else if (item.customColorNumber || frameStr) {
-                          frameDisplay = `رقم ${item.customColorNumber || frameStr}`;
-                        }
-
-                        if ((item.type || item.productType) === 'black_out') {
-                          const fabricLabel = getBlackOutColorLabel(item.blackOutColor || 'black');
-                          return (
-                            <div>
-                              <div>{fabricLabel}</div>
-                              <div
-                                style={{
-                                  fontSize: '11px',
-                                  color: '#64748b',
-                                  fontWeight: 600,
-                                  marginTop: '2px',
-                                }}
-                              >
-                                فريم: {frameDisplay}
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        return frameDisplay;
-                      })()}
-                    </td>
-                    <td
-                      style={{
-                        padding: '12px 10px',
-                        fontSize: '13px',
-                        fontWeight: 700,
-                        color: '#1e293b',
-                        borderBottom: '1px solid #e2e8f0',
-                      }}
-                    >
-                      {item.layerType === 'double' ? 'دبل' : 'سنجل'}
-                    </td>
-                    <td
-                      style={{
-                        padding: '12px 10px',
-                        fontWeight: 700,
-                        color: '#0f172a',
-                        borderBottom: '1px solid #e2e8f0',
-                        fontFamily: "'JetBrains Mono', monospace",
-                      }}
-                    >
-                      {formatCurrency(item.itemPrice)} دينار
-                    </td>
-                    <td
-                      style={{
-                        padding: '12px 10px',
-                        fontSize: '13px',
-                        color: '#475569',
-                        borderBottom: '1px solid #e2e8f0',
-                      }}
-                    >
-                      {item.notes || '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Summary Footer */}
-          <div
-            style={{
-              paddingTop: '20px',
-              borderTop: '2px solid #0f172a',
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'flex-start',
-              justifyContent: 'space-between',
-              gap: '20px',
-            }}
-          >
-            <div style={{ fontSize: '12px', color: '#475569', lineHeight: 1.8 }}>
-              <div style={{ margin: 0, color: '#475569' }}>
-                إجمالي عدد المنتجات في الفاتورة: {invoice.items.length}
-              </div>
-              <div style={{ margin: 0, color: '#475569' }}>
-                طريقة الحساب: (الطول × العرض) ÷ 10,000 × سعر المتر ({invoice.meterPrice || FIXED_METER_PRICE} د) + الرسوم الإضافية
-              </div>
-              {(invoice.invoiceNotes || invoice.notes) && (
-                <div style={{ marginTop: '8px', padding: '6px 10px', backgroundColor: '#f1f5f9', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '11px', color: '#1e293b' }}>
-                  <strong>ملاحظات الفاتورة:</strong> {invoice.invoiceNotes || invoice.notes}
+                    {formatDimension(invoice.totalMeters)} متر
+                  </span>
                 </div>
-              )}
-            </div>
 
-            <div
-              style={{
-                width: '300px',
-                backgroundColor: '#f8fafc',
-                padding: '16px',
-                borderRadius: '8px',
-                border: '1px solid #cbd5e1',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  fontSize: '13px',
-                  color: '#475569',
-                  marginBottom: '8px',
-                }}
-              >
-                <span style={{ color: '#475569' }}>إجمالي المساحة (م²):</span>
-                <span
+                {Boolean(invoice.discount && invoice.discount > 0) && (
+                  <>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        fontSize: '12px',
+                        color: '#475569',
+                        marginBottom: '8px',
+                      }}
+                    >
+                      <span style={{ color: '#475569' }}>المجموع قبل الخصم:</span>
+                      <span
+                        style={{
+                          fontWeight: 700,
+                          color: '#0f172a',
+                          fontFamily: "'JetBrains Mono', monospace",
+                        }}
+                      >
+                        {formatCurrency(
+                          invoice.subTotal !== undefined
+                            ? invoice.subTotal
+                            : invoice.grandTotal + (invoice.discount || 0)
+                        )}{' '}
+                        دينار
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        fontSize: '12px',
+                        color: '#b91c1c',
+                        marginBottom: '8px',
+                      }}
+                    >
+                      <span style={{ color: '#b91c1c', fontWeight: 700 }}>قيمة الخصم:</span>
+                      <span
+                        style={{
+                          fontWeight: 700,
+                          color: '#b91c1c',
+                          fontFamily: "'JetBrains Mono', monospace",
+                        }}
+                      >
+                        - {formatCurrency(invoice.discount || 0)} دينار
+                      </span>
+                    </div>
+                  </>
+                )}
+
+                <div
                   style={{
+                    paddingTop: '10px',
+                    borderTop: '1px solid #cbd5e1',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: isMobile ? '15px' : '16px',
                     fontWeight: 700,
                     color: '#0f172a',
-                    fontFamily: "'JetBrains Mono', monospace",
                   }}
                 >
-                  {formatDimension(invoice.totalMeters)} متر
-                </span>
-              </div>
-
-              {Boolean(invoice.discount && invoice.discount > 0) && (
-                <>
-                  <div
+                  <span style={{ color: '#0f172a' }}>
+                    {invoice.discount && invoice.discount > 0 ? 'المجموع بعد الخصم:' : 'المجموع الكلي:'}
+                  </span>
+                  <span
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      fontSize: '13px',
-                      color: '#475569',
-                      marginBottom: '8px',
+                      color: '#0f172a',
+                      fontFamily: "'JetBrains Mono', monospace",
                     }}
                   >
-                    <span style={{ color: '#475569' }}>المجموع قبل الخصم:</span>
-                    <span
-                      style={{
-                        fontWeight: 700,
-                        color: '#0f172a',
-                        fontFamily: "'JetBrains Mono', monospace",
-                      }}
-                    >
-                      {formatCurrency(
-                        invoice.subTotal !== undefined
-                          ? invoice.subTotal
-                          : invoice.grandTotal + (invoice.discount || 0)
-                      )}{' '}
-                      دينار
-                    </span>
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      fontSize: '13px',
-                      color: '#b91c1c',
-                      marginBottom: '8px',
-                    }}
-                  >
-                    <span style={{ color: '#b91c1c', fontWeight: 700 }}>قيمة الخصم:</span>
-                    <span
-                      style={{
-                        fontWeight: 700,
-                        color: '#b91c1c',
-                        fontFamily: "'JetBrains Mono', monospace",
-                      }}
-                    >
-                      - {formatCurrency(invoice.discount || 0)} دينار
-                    </span>
-                  </div>
-                </>
-              )}
-
-              <div
-                style={{
-                  paddingTop: '10px',
-                  borderTop: '1px solid #cbd5e1',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  fontSize: '16px',
-                  fontWeight: 700,
-                  color: '#0f172a',
-                }}
-              >
-                <span style={{ color: '#0f172a' }}>
-                  {invoice.discount && invoice.discount > 0 ? 'المجموع بعد الخصم:' : 'المجموع الكلي:'}
-                </span>
-                <span
-                  style={{
-                    color: '#0f172a',
-                    fontFamily: "'JetBrains Mono', monospace",
-                  }}
-                >
-                  {formatCurrency(invoice.grandTotal)} دينار
-                </span>
+                    {formatCurrency(invoice.grandTotal)} دينار
+                  </span>
+                </div>
               </div>
             </div>
           </div>

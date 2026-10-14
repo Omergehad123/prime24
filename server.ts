@@ -3,6 +3,12 @@
  * @description Full-Stack Express + MongoDB + Vite Entry Point.
  * Serves REST API under /api/invoices and mounts Vite middleware in development
  * or static production bundle in production/Docker.
+ * 
+ * Admin authentication flow:
+ * 1. On startup, seedAdminUser() creates the admin from ADMIN_EMAIL + ADMIN_PASSWORD env vars
+ *    into MongoDB with bcrypt-hashed password. No plaintext credentials in source code.
+ * 2. All /api/invoices/* routes are protected by requireAdminAuth middleware.
+ * 3. Tokens are HMAC-SHA256 signed (AUTH_SECRET env var) and valid for 1 month.
  */
 
 import express from 'express';
@@ -12,6 +18,9 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { invoiceRepository } from './backend/store/repository.js';
 import { invoiceRouter } from './backend/routes/invoiceRoutes.js';
+import { authRouter } from './backend/routes/authRoutes.js';
+import { requireAdminAuth } from './backend/middleware/authMiddleware.js';
+import { seedAdminUser } from './backend/auth/adminSeeder.js';
 
 dotenv.config();
 
@@ -27,6 +36,11 @@ async function startServer() {
   const dbConnection = await invoiceRepository.connectMongo(process.env.MONGODB_URI);
   console.log(`[Database Architect] Storage Mode: ${dbConnection.mode} (${dbConnection.uri})`);
 
+  // Seed the admin user into MongoDB (runs only if admin doesn't exist yet)
+  if (dbConnection.mode === 'mongodb') {
+    await seedAdminUser();
+  }
+
   // API Health & Metadata Route
   app.get('/api/health', (_req, res) => {
     res.json({
@@ -36,8 +50,11 @@ async function startServer() {
     });
   });
 
-  // Mount Invoice Routes
-  app.use('/api/invoices', invoiceRouter);
+  // Mount Admin Authentication Routes
+  app.use('/api/auth', authRouter);
+
+  // Mount Invoice Routes (Protected by Admin Authentication)
+  app.use('/api/invoices', requireAdminAuth, invoiceRouter);
 
   // Vite middleware for development vs static serving for production
   if (process.env.NODE_ENV !== 'production') {

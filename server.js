@@ -641,6 +641,258 @@ invoiceRouter.delete("/:id", async (req, res) => {
   }
 });
 
+// backend/routes/authRoutes.ts
+import { Router as Router2 } from "express";
+
+// backend/auth/authService.ts
+import crypto from "crypto";
+import bcrypt from "bcryptjs";
+
+// backend/models/AdminUser.ts
+import mongoose3, { Schema as Schema2 } from "mongoose";
+var AdminUserSchema = new Schema2(
+  {
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true
+    },
+    passwordHash: {
+      type: String,
+      required: true
+    },
+    role: {
+      type: String,
+      enum: ["admin"],
+      default: "admin"
+    }
+  },
+  {
+    timestamps: true,
+    collection: "admin_users"
+  }
+);
+var AdminUserModel = mongoose3.model("AdminUser", AdminUserSchema);
+
+// backend/auth/authService.ts
+var TOKEN_LIFESPAN_MS = 30 * 24 * 60 * 60 * 1e3;
+function getJwtSecret() {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) {
+    throw new Error(
+      "[Prime 24 Auth] AUTH_SECRET env variable is required but missing. Set it in your .env file."
+    );
+  }
+  return secret;
+}
+function base64UrlEncode(str) {
+  return Buffer.from(str).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+}
+function base64UrlDecode(str) {
+  let base64 = str.replace(/-/g, "+").replace(/_/g, "/");
+  while (base64.length % 4) base64 += "=";
+  return Buffer.from(base64, "base64").toString("utf8");
+}
+var authService = {
+  /**
+   * Looks up admin by email in MongoDB and verifies password with bcrypt.
+   * Returns the admin user document if valid, null otherwise.
+   */
+  async validateAdminCredentials(email, password) {
+    const normalizedEmail = (email || "").trim().toLowerCase();
+    if (!normalizedEmail || !password) return null;
+    const admin = await AdminUserModel.findOne({ email: normalizedEmail });
+    if (!admin) return null;
+    const isMatch = await bcrypt.compare(password, admin.passwordHash);
+    if (!isMatch) return null;
+    return { email: admin.email, role: "admin" };
+  },
+  /**
+   * Generates a tamper-proof signed token valid for 1 month.
+   */
+  generateAdminToken(email) {
+    const now = Date.now();
+    const expiresAt = now + TOKEN_LIFESPAN_MS;
+    const header = base64UrlEncode(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+    const payload = { email, role: "admin", iat: now, exp: expiresAt };
+    const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+    const signature = crypto.createHmac("sha256", getJwtSecret()).update(`${header}.${encodedPayload}`).digest("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+    return {
+      token: `${header}.${encodedPayload}.${signature}`,
+      expiresAt,
+      user: { email, role: "admin" }
+    };
+  },
+  /**
+   * Verifies the token signature and expiration.
+   * Returns TokenPayload if valid, null if tampered or expired.
+   */
+  verifyToken(token) {
+    if (!token || typeof token !== "string") return null;
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const [header, payload, signature] = parts;
+    const expectedSig = crypto.createHmac("sha256", getJwtSecret()).update(`${header}.${payload}`).digest("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+    if (signature.length !== expectedSig.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) {
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(base64UrlDecode(payload));
+      if (!parsed.exp || Date.now() > parsed.exp) return null;
+      if (parsed.role !== "admin") return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+};
+
+// backend/routes/authRoutes.ts
+var authRouter = Router2();
+authRouter.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      res.status(400).json({
+        success: false,
+        message: "\u064A\u0631\u062C\u0649 \u0625\u062F\u062E\u0627\u0644 \u0627\u0644\u0628\u0631\u064A\u062F \u0627\u0644\u0625\u0644\u0643\u062A\u0631\u0648\u0646\u064A \u0648\u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631"
+      });
+      return;
+    }
+    const adminUser = await authService.validateAdminCredentials(email, password);
+    if (!adminUser) {
+      res.status(401).json({
+        success: false,
+        message: "\u0627\u0644\u0628\u0631\u064A\u062F \u0627\u0644\u0625\u0644\u0643\u062A\u0631\u0648\u0646\u064A \u0623\u0648 \u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631 \u063A\u064A\u0631 \u0635\u062D\u064A\u062D\u0629"
+      });
+      return;
+    }
+    const session = authService.generateAdminToken(adminUser.email);
+    res.json({
+      success: true,
+      message: "\u062A\u0645 \u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u062F\u062E\u0648\u0644 \u0628\u0646\u062C\u0627\u062D \u0643\u0645\u062F\u064A\u0631 \u0644\u0644\u0646\u0638\u0627\u0645",
+      token: session.token,
+      expiresAt: session.expiresAt,
+      user: session.user
+    });
+  } catch (error) {
+    console.error("[Auth Login Error]", error?.message, error?.stack);
+    res.status(500).json({
+      success: false,
+      message: error?.message || "\u062D\u062F\u062B \u062E\u0637\u0623 \u0641\u064A \u0627\u0644\u062E\u0627\u062F\u0645 \u0623\u062B\u0646\u0627\u0621 \u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u062F\u062E\u0648\u0644"
+    });
+  }
+});
+authRouter.get("/verify", (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    res.status(401).json({
+      success: false,
+      message: "\u063A\u064A\u0631 \u0645\u0633\u062C\u0644 \u0627\u0644\u062F\u062E\u0648\u0644",
+      isAuthError: true
+    });
+    return;
+  }
+  const token = authHeader.substring(7).trim();
+  const payload = authService.verifyToken(token);
+  if (!payload) {
+    res.status(401).json({
+      success: false,
+      message: "\u0627\u0646\u062A\u0647\u062A \u0635\u0644\u0627\u062D\u064A\u0629 \u0627\u0644\u062C\u0644\u0633\u0629 \u0623\u0648 \u0627\u0644\u062A\u0648\u0643\u0646 \u063A\u064A\u0631 \u0635\u0627\u0644\u062D\u060C \u064A\u0631\u062C\u0649 \u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u062F\u062E\u0648\u0644 \u0645\u062C\u062F\u062F\u0627\u064B",
+      isAuthError: true
+    });
+    return;
+  }
+  res.json({
+    success: true,
+    user: {
+      email: payload.email,
+      role: payload.role
+    },
+    expiresAt: payload.exp
+  });
+});
+authRouter.post("/logout", (_req, res) => {
+  res.json({
+    success: true,
+    message: "\u062A\u0645 \u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u062E\u0631\u0648\u062C \u0628\u0646\u062C\u0627\u062D"
+  });
+});
+
+// backend/middleware/authMiddleware.ts
+function requireAdminAuth(req, res, next) {
+  if (req.method === "OPTIONS") {
+    next();
+    return;
+  }
+  if (req.path === "/logo-base64") {
+    next();
+    return;
+  }
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    res.status(401).json({
+      success: false,
+      message: "\u063A\u064A\u0631 \u0645\u0635\u0631\u062D \u0628\u0627\u0644\u062F\u062E\u0648\u0644: \u064A\u0631\u062C\u0649 \u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u062F\u062E\u0648\u0644 \u0623\u0648\u0644\u0627\u064B",
+      isAuthError: true
+    });
+    return;
+  }
+  const token = authHeader.substring(7).trim();
+  const payload = authService.verifyToken(token);
+  if (!payload) {
+    res.status(401).json({
+      success: false,
+      message: "\u0627\u0644\u062C\u0644\u0633\u0629 \u0645\u0646\u062A\u0647\u064A\u0629 \u0623\u0648 \u0627\u0644\u062A\u0648\u0643\u0646 \u063A\u064A\u0631 \u0635\u0627\u0644\u062D: \u064A\u0631\u062C\u0649 \u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u062F\u062E\u0648\u0644 \u0645\u062C\u062F\u062F\u0627\u064B",
+      isAuthError: true
+    });
+    return;
+  }
+  req.adminUser = payload;
+  next();
+}
+
+// backend/auth/adminSeeder.ts
+import bcrypt2 from "bcryptjs";
+var SALT_ROUNDS = 12;
+async function seedAdminUser() {
+  const email = process.env.ADMIN_EMAIL;
+  const password = process.env.ADMIN_PASSWORD;
+  if (!email || !password) {
+    console.warn(
+      "\n\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557\n\u2551  [Prime 24 Auth] WARNING: ADMIN_EMAIL or ADMIN_PASSWORD  \u2551\n\u2551  environment variables are missing from your .env file!  \u2551\n\u2551  Admin user will NOT be seeded until they are set.        \u2551\n\u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255D\n"
+    );
+    return;
+  }
+  try {
+    const normalizedEmail = email.toLowerCase().trim();
+    const existing = await AdminUserModel.findOne({ email: normalizedEmail });
+    if (existing) {
+      const isMatch = await bcrypt2.compare(password, existing.passwordHash);
+      if (isMatch) {
+        console.log(`[Admin Seeder] Admin user (${email}) already exists with valid credentials \u2014 skipping.`);
+      } else {
+        console.warn(`[Admin Seeder] \u26A0\uFE0F  Admin password in DB doesn't match env var. Updating hash...`);
+        existing.passwordHash = await bcrypt2.hash(password, SALT_ROUNDS);
+        await existing.save();
+        console.log(`[Admin Seeder] \u2705 Admin password updated for (${email}).`);
+      }
+      return;
+    }
+    const passwordHash = await bcrypt2.hash(password, SALT_ROUNDS);
+    await AdminUserModel.create({
+      email: normalizedEmail,
+      passwordHash,
+      role: "admin"
+    });
+    console.log(`[Admin Seeder] \u2705 Admin user (${email}) created in MongoDB successfully.`);
+  } catch (err) {
+    console.error("[Admin Seeder] \u274C Failed to seed admin user:", err.message);
+  }
+}
+
 // server.ts
 dotenv.config();
 async function startServer() {
@@ -650,6 +902,9 @@ async function startServer() {
   app.use(express.json({ limit: "5mb" }));
   const dbConnection = await invoiceRepository.connectMongo(process.env.MONGODB_URI);
   console.log(`[Database Architect] Storage Mode: ${dbConnection.mode} (${dbConnection.uri})`);
+  if (dbConnection.mode === "mongodb") {
+    await seedAdminUser();
+  }
   app.get("/api/health", (_req, res) => {
     res.json({
       status: "ok",
@@ -657,7 +912,8 @@ async function startServer() {
       database: invoiceRepository.getEngineStatus()
     });
   });
-  app.use("/api/invoices", invoiceRouter);
+  app.use("/api/auth", authRouter);
+  app.use("/api/invoices", requireAdminAuth, invoiceRouter);
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
